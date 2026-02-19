@@ -23,14 +23,14 @@ struct ViewerView: View {
                 }
                 .buttonStyle(.bordered)
                 .disabled(!appState.canGoToPreviousPhoto)
-                .keyboardShortcut(.leftArrow, modifiers: [.command])
+                .keyboardShortcut(.leftArrow, modifiers: [])
 
                 Button("Next") {
                     appState.goToNextPhoto()
                 }
                 .buttonStyle(.bordered)
                 .disabled(!appState.canGoToNextPhoto)
-                .keyboardShortcut(.rightArrow, modifiers: [.command])
+                .keyboardShortcut(.rightArrow, modifiers: [])
 
                 Spacer()
 
@@ -188,6 +188,8 @@ struct ViewerView: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .focusable()
+        .onMoveCommand(perform: handleMoveCommand)
         .task(id: appState.selectedPhotoID) {
             guard let selectedPhoto = appState.selectedPhoto else {
                 image = nil
@@ -252,6 +254,17 @@ struct ViewerView: View {
     private func addTag() {
         appState.addTag(newTagText)
         newTagText = ""
+    }
+
+    private func handleMoveCommand(_ direction: MoveCommandDirection) {
+        switch direction {
+        case .left:
+            appState.goToPreviousPhoto()
+        case .right:
+            appState.goToNextPhoto()
+        default:
+            break
+        }
     }
 }
 

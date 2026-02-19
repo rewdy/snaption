@@ -7,7 +7,11 @@ final class AppState: ObservableObject {
     @Published var projectRootURL: URL?
     @Published private(set) var lastProjectURL: URL?
     @Published var statusMessage: String?
-    @Published var libraryViewModel = LibraryViewModel()
+    @Published var libraryViewModel = LibraryViewModel() {
+        didSet {
+            bindLibraryViewModelChanges()
+        }
+    }
     @Published private(set) var selectedPhotoID: String?
     @Published var notesText: String = ""
     @Published var tags: [String] = []
@@ -19,11 +23,13 @@ final class AppState: ObservableObject {
     private let sidecarService: SidecarService
     private var loadedSidecarDocument: SidecarDocument?
     private var autosaveTask: Task<Void, Never>?
+    private var libraryViewModelChangeCancellable: AnyCancellable?
     private let autosaveDelayNanoseconds: UInt64 = 600_000_000
 
     init(projectService: ProjectService, sidecarService: SidecarService) {
         self.projectService = projectService
         self.sidecarService = sidecarService
+        bindLibraryViewModelChanges()
     }
 
     convenience init() {
@@ -290,6 +296,12 @@ final class AppState: ObservableObject {
             .split(whereSeparator: \.isWhitespace)
             .joined(separator: " ")
             .trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private func bindLibraryViewModelChanges() {
+        libraryViewModelChangeCancellable = libraryViewModel.objectWillChange.sink { [weak self] in
+            self?.objectWillChange.send()
+        }
     }
 
     private func openProject(at url: URL) {
