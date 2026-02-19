@@ -137,7 +137,7 @@ private struct ThumbnailCell: View {
         }
         .buttonStyle(.plain)
         .task(id: item.id) {
-            image = await thumbnailService.thumbnail(for: item.imageURL, maxPixelSize: 360)
+            image = thumbnailService.thumbnail(for: item.imageURL, maxPixelSize: 360)
         }
     }
 }

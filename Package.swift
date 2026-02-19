@@ -1,4 +1,4 @@
-// swift-tools-version: 6.2
+// swift-tools-version: 6.1
 
 import PackageDescription
 
@@ -10,6 +10,10 @@ let package = Package(
     targets: [
         .executableTarget(
             name: "PhotoInfoApp"
+        ),
+        .testTarget(
+            name: "PhotoInfoAppTests",
+            dependencies: ["PhotoInfoApp"]
         ),
     ]
 )

@@ -2,22 +2,21 @@ import AppKit
 import Foundation
 import ImageIO
 
-actor ThumbnailService {
+@MainActor
+final class ThumbnailService {
     private let cache = NSCache<NSString, NSImage>()
 
     init() {
         cache.countLimit = 1200
     }
 
-    func thumbnail(for imageURL: URL, maxPixelSize: Int) async -> NSImage? {
+    func thumbnail(for imageURL: URL, maxPixelSize: Int) -> NSImage? {
         let cacheKey = "\(imageURL.path)#\(maxPixelSize)" as NSString
         if let cachedImage = cache.object(forKey: cacheKey) {
             return cachedImage
         }
 
-        let image = await Task.detached(priority: .utility) {
-            Self.generateThumbnail(for: imageURL, maxPixelSize: maxPixelSize)
-        }.value
+        let image = Self.generateThumbnail(for: imageURL, maxPixelSize: maxPixelSize)
 
         if let image {
             cache.setObject(image, forKey: cacheKey)
