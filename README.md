@@ -1,5 +1,9 @@
 # Snaption
 
+<p align="center">
+  <img src="https://github.com/rewdy/snaption/blob/main/snaption-sm.png?raw=true" alt="Snaption app icon"/>
+</p>
+
 Snaption is a macOS desktop app for browsing family photo archives and saving annotations in human-readable Markdown sidecar files.
 
 ## What It Does
