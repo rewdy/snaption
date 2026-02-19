@@ -25,7 +25,11 @@ struct DefaultMediaIndexer: MediaIndexer {
                     var batch: [PhotoItem] = []
                     batch.reserveCapacity(batchSize)
 
-                    for case let fileURL as URL in enumerator {
+                    while let object = enumerator.nextObject() {
+                        guard let fileURL = object as? URL else {
+                            continue
+                        }
+
                         if Task.isCancelled {
                             continuation.finish()
                             return
