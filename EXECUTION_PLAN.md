@@ -278,3 +278,76 @@ All of the following must be true:
 1. Initialize SwiftUI macOS project structure in repo.
 2. Implement Milestone 0 and Milestone 1 skeleton in one branch.
 3. Add fixture directories and first parser tests before full annotation UI.
+
+## 9) Agent Team Operating Model
+
+This section defines how parallel agents should work without stepping on each other.
+
+## 9.1 Branch Strategy
+
+- Main branch: `main` (protected by review policy if available).
+- Agent branches:
+  - `agent/<area>/<short-task>`
+  - Examples:
+    - `agent/foundation/app-shell`
+    - `agent/sidecar/parser-writer`
+- Rebase/merge policy:
+  - Keep branches short-lived.
+  - Merge to `main` only after checks pass.
+
+## 9.2 Ownership Map
+
+- Agent 1 owns: app shell, routing, global state wiring.
+- Agent 2/3 own: indexing, grid, thumbnail pipeline.
+- Agent 4 owns: viewer + navigation.
+- Agent 5/6/7 own: sidecar engine + annotations + autosave.
+- Agent 8 owns: search.
+- Agent 9 owns: tests/perf harness and release quality gates.
+
+## 9.3 Interface Contracts (Required)
+
+Each agent must treat these as stable contracts unless a coordinated change is approved:
+
+- `PhotoItem` fields and sorting semantics.
+- Sidecar canonical keys:
+  - `photo`
+  - `labels` (`id`, `x`, `y`, `text`)
+  - `tags`
+  - `updated_at`
+- Autosave state machine states:
+  - `clean`, `dirty`, `saving`, `error`
+- Navigation semantics:
+  - filename-based, no wraparound.
+
+Contract changes require:
+1. Updating `TECHNICAL_DESIGN.md`.
+2. Updating impacted tests in same PR.
+3. Calling out migration impact in PR notes.
+
+## 9.4 PR and Handoff Template
+
+Every agent PR should include:
+
+1. Scope: what was implemented.
+2. Files touched: explicit list.
+3. Contract changes: yes/no.
+4. Tests added/updated.
+5. Risks/open issues.
+6. Screenshots or short clip for UI changes.
+
+## 9.5 Merge Gates
+
+- Required before merge:
+  - Build succeeds.
+  - Relevant unit/integration tests pass.
+  - No unresolved TODOs for data-loss/error paths in changed files.
+- For sidecar write-path changes:
+  - Roundtrip tests are mandatory.
+- For viewer/index/search changes:
+  - At least one integration test or manual QA evidence.
+
+## 9.6 Integration Cadence
+
+- Integrate to `main` at least once per day during active build.
+- Prefer smaller PRs (<500 LOC net when practical).
+- Resolve conflicts by contract owner for affected module.
