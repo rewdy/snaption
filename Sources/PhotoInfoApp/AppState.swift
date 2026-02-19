@@ -6,6 +6,7 @@ final class AppState: ObservableObject {
     @Published var route: AppRoute = .start
     @Published var projectRootURL: URL?
     @Published var statusMessage: String?
+    @Published var libraryViewModel = LibraryViewModel()
 
     private let projectService: ProjectService
 
@@ -21,6 +22,7 @@ final class AppState: ObservableObject {
 
             projectRootURL = selectedURL
             statusMessage = "Project opened: \(selectedURL.path)"
+            libraryViewModel.loadProject(rootURL: selectedURL)
             route = .library
         } catch {
             statusMessage = "Failed to open folder: \(error.localizedDescription)"

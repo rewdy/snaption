@@ -1,16 +1,21 @@
+import AppKit
 import SwiftUI
 
 struct LibraryView: View {
     @ObservedObject var appState: AppState
 
+    private let columns = [
+        GridItem(.adaptive(minimum: 150, maximum: 220), spacing: 12),
+    ]
+
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            Text("Library Placeholder")
+            Text("Library")
                 .font(.title2)
                 .bold()
 
-            if let projectRootURL = appState.projectRootURL {
-                Text("Project root: \(projectRootURL.path)")
+            if let rootURL = appState.libraryViewModel.rootURL {
+                Text("Project root: \(rootURL.path)")
                     .font(.callout)
                     .foregroundStyle(.secondary)
             } else {
@@ -20,19 +25,103 @@ struct LibraryView: View {
             }
 
             HStack {
-                Button("Open Viewer Placeholder") {
-                    appState.openViewerPlaceholder()
-                }
-                .buttonStyle(.bordered)
-
                 Button("Choose Different Folder") {
                     appState.openProjectPicker()
                 }
                 .buttonStyle(.bordered)
+
+                Button("Sort: \(appState.libraryViewModel.sortDirection.label)") {
+                    appState.libraryViewModel.toggleSortDirection()
+                }
+                .buttonStyle(.bordered)
+                .disabled(appState.libraryViewModel.allItems.isEmpty)
+
+                if appState.libraryViewModel.isIndexing {
+                    ProgressView()
+                        .controlSize(.small)
+                    Text("Indexing \(appState.libraryViewModel.indexedCount) photos...")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                } else {
+                    Text("\(appState.libraryViewModel.allItems.count) photos indexed")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                }
+            }
+
+            if let indexingErrorMessage = appState.libraryViewModel.indexingErrorMessage {
+                Text(indexingErrorMessage)
+                    .font(.footnote)
+                    .foregroundStyle(.red)
+            }
+
+            if appState.libraryViewModel.displayedItems.isEmpty && !appState.libraryViewModel.isIndexing {
+                ContentUnavailableView(
+                    "No photos found",
+                    systemImage: "photo.on.rectangle.angled",
+                    description: Text("Supported formats: jpg, jpeg, png")
+                )
+            } else {
+                ScrollView {
+                    LazyVGrid(columns: columns, spacing: 12) {
+                        ForEach(appState.libraryViewModel.displayedItems) { item in
+                            ThumbnailCell(
+                                item: item,
+                                thumbnailService: appState.libraryViewModel.thumbnailService
+                            ) {
+                                appState.openViewerPlaceholder()
+                            }
+                        }
+                    }
+                    .padding(.vertical, 8)
+                }
             }
 
             Spacer()
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+    }
+}
+
+private struct ThumbnailCell: View {
+    let item: PhotoItem
+    let thumbnailService: ThumbnailService
+    let onOpen: () -> Void
+
+    @State private var image: NSImage?
+
+    var body: some View {
+        Button(action: onOpen) {
+            VStack(alignment: .leading, spacing: 8) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 8)
+                        .fill(Color.secondary.opacity(0.12))
+
+                    if let image {
+                        Image(nsImage: image)
+                            .resizable()
+                            .scaledToFill()
+                    } else {
+                        ProgressView()
+                            .controlSize(.small)
+                    }
+                }
+                .frame(height: 132)
+                .clipShape(RoundedRectangle(cornerRadius: 8))
+
+                Text(item.filename)
+                    .font(.caption)
+                    .lineLimit(1)
+
+                Text(item.relativePath)
+                    .font(.caption2)
+                    .lineLimit(1)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .buttonStyle(.plain)
+        .task(id: item.id) {
+            image = await thumbnailService.thumbnail(for: item.imageURL, maxPixelSize: 360)
+        }
     }
 }
