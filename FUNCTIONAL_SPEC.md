@@ -1,4 +1,4 @@
-# PhotoInfo App Functional Specification (MVP)
+# Snaption Functional Specification (MVP)
 
 This document defines concrete MVP behavior from user actions to file writes.
 

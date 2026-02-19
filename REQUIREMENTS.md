@@ -1,4 +1,4 @@
-# PhotoInfo App Requirements (Draft v0.1)
+# Snaption Requirements (Draft v0.1)
 
 ## 1) Vision and Goals
 

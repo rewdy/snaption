@@ -1,6 +1,26 @@
-# PhotoInfo App Execution Plan (MVP)
+# Snaption Execution Plan (MVP)
 
 This plan converts requirements and technical design into implementable milestones and agent-ready task units.
+
+## Status Snapshot (2026-02-19)
+
+- Overall: MVP core feature set is implemented; hardening/performance/release-readiness remains.
+- Current app identity: `Snaption` (renamed from earlier `PhotoInfo` references in docs/code history).
+
+Milestone status:
+- Milestone 0: Complete
+- Milestone 1: Complete
+- Milestone 2: Complete
+- Milestone 3: Complete
+- Milestone 4: Complete
+- Milestone 5: Complete
+- Milestone 6: In progress (partial)
+
+Recent implementation notes:
+- Fixed library repaint/update issue by forwarding nested `LibraryViewModel.objectWillChange` through `AppState`.
+- Added keyboard navigation in viewer:
+  - Left arrow -> previous photo
+  - Right arrow -> next photo
 
 ## 1) Delivery Strategy
 
@@ -275,9 +295,12 @@ All of the following must be true:
 
 ## 8) Immediate Next Actions
 
-1. Initialize SwiftUI macOS project structure in repo.
-2. Implement Milestone 0 and Milestone 1 skeleton in one branch.
-3. Add fixture directories and first parser tests before full annotation UI.
+1. Execute Milestone 6 hardening pass:
+   - large-dataset performance profiling and tuning
+   - malformed sidecar/error-path UX validation
+   - regression test expansion
+2. Run full manual QA checklist for primary user flows and document findings.
+3. Prepare packaging/signing/notarization plan for direct-download distribution.
 
 ## 9) Agent Team Operating Model
 

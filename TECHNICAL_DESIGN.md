@@ -1,4 +1,4 @@
-# PhotoInfo App Technical Design (MVP)
+# Snaption Technical Design (MVP)
 
 This document turns product requirements into an implementable design for a native macOS app.
 
