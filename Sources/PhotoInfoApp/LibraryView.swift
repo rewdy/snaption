@@ -68,8 +68,8 @@ struct LibraryView: View {
                             ThumbnailCell(
                                 item: item,
                                 thumbnailService: appState.libraryViewModel.thumbnailService
-                            ) {
-                                appState.openViewerPlaceholder()
+                            ) { selectedItem in
+                                appState.openViewer(for: selectedItem)
                             }
                         }
                     }
@@ -86,12 +86,14 @@ struct LibraryView: View {
 private struct ThumbnailCell: View {
     let item: PhotoItem
     let thumbnailService: ThumbnailService
-    let onOpen: () -> Void
+    let onOpen: (PhotoItem) -> Void
 
     @State private var image: NSImage?
 
     var body: some View {
-        Button(action: onOpen) {
+        Button {
+            onOpen(item)
+        } label: {
             VStack(alignment: .leading, spacing: 8) {
                 ZStack {
                     RoundedRectangle(cornerRadius: 8)
