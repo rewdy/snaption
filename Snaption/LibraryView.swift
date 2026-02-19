@@ -137,7 +137,16 @@ private struct ThumbnailCell: View {
         }
         .buttonStyle(.plain)
         .task(id: item.id) {
-            image = thumbnailService.thumbnail(for: item.imageURL, maxPixelSize: 360)
+            image = nil
+            let data = await Task.detached(priority: .utility) {
+                thumbnailService.thumbnailData(for: item.imageURL, maxPixelSize: 360)
+            }.value
+            guard !Task.isCancelled else {
+                return
+            }
+            if let data {
+                image = NSImage(data: data)
+            }
         }
     }
 }

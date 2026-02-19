@@ -23,14 +23,14 @@ struct ViewerView: View {
                 }
                 .buttonStyle(.bordered)
                 .disabled(!appState.canGoToPreviousPhoto)
-                .keyboardShortcut(.leftArrow, modifiers: [])
+                .keyboardShortcut(.leftArrow, modifiers: [.command])
 
                 Button("Next") {
                     appState.goToNextPhoto()
                 }
                 .buttonStyle(.bordered)
                 .disabled(!appState.canGoToNextPhoto)
-                .keyboardShortcut(.rightArrow, modifiers: [])
+                .keyboardShortcut(.rightArrow, modifiers: [.command])
 
                 Spacer()
 

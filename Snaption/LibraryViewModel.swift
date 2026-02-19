@@ -70,10 +70,11 @@ final class LibraryViewModel: ObservableObject {
 
             do {
                 for try await batch in mediaIndexer.indexPhotos(in: rootURL) {
-                    allItems.append(contentsOf: batch)
-                    allItems.sort(by: Self.filenameOrder)
+                    let sortedBatch = batch.sorted(by: Self.filenameOrder)
+                    allItems = Self.mergeSorted(allItems, sortedBatch, by: Self.filenameOrder)
                     indexedCount = allItems.count
                     indexSearchContent(for: batch)
+                    await Task.yield()
                 }
 
                 isIndexing = false
@@ -128,5 +129,42 @@ final class LibraryViewModel: ObservableObject {
             return lhs.relativePath.localizedStandardCompare(rhs.relativePath) == .orderedAscending
         }
         return lhs.filename.localizedStandardCompare(rhs.filename) == .orderedAscending
+    }
+
+    private static func mergeSorted(
+        _ lhs: [PhotoItem],
+        _ rhs: [PhotoItem],
+        by areInIncreasingOrder: (PhotoItem, PhotoItem) -> Bool
+    ) -> [PhotoItem] {
+        if lhs.isEmpty {
+            return rhs
+        }
+        if rhs.isEmpty {
+            return lhs
+        }
+
+        var merged: [PhotoItem] = []
+        merged.reserveCapacity(lhs.count + rhs.count)
+
+        var leftIndex = 0
+        var rightIndex = 0
+        while leftIndex < lhs.count, rightIndex < rhs.count {
+            if areInIncreasingOrder(lhs[leftIndex], rhs[rightIndex]) {
+                merged.append(lhs[leftIndex])
+                leftIndex += 1
+            } else {
+                merged.append(rhs[rightIndex])
+                rightIndex += 1
+            }
+        }
+
+        if leftIndex < lhs.count {
+            merged.append(contentsOf: lhs[leftIndex...])
+        }
+        if rightIndex < rhs.count {
+            merged.append(contentsOf: rhs[rightIndex...])
+        }
+
+        return merged
     }
 }

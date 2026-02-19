@@ -6,7 +6,7 @@ protocol MediaIndexer {
 
 struct DefaultMediaIndexer: MediaIndexer {
     private let supportedExtensions: Set<String> = ["jpg", "jpeg", "png"]
-    private let batchSize = 75
+    private let batchSize = 24
 
     func indexPhotos(in rootURL: URL) -> AsyncThrowingStream<[PhotoItem], Error> {
         AsyncThrowingStream { continuation in
