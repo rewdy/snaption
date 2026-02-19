@@ -2,10 +2,12 @@ import AppKit
 import Foundation
 
 protocol ProjectService {
+    @MainActor
     func selectProjectFolder() throws -> URL?
 }
 
 struct DefaultProjectService: ProjectService {
+    @MainActor
     func selectProjectFolder() throws -> URL? {
         let panel = NSOpenPanel()
         panel.title = "Choose Photo Project Folder"

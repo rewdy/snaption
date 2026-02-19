@@ -26,31 +26,62 @@ struct ViewerView: View {
                 .disabled(!appState.canGoToNextPhoto)
 
                 Spacer()
+
+                Text(appState.notesSaveState.label)
+                    .font(.footnote)
+                    .foregroundStyle(saveStateColor)
             }
 
             if let selectedPhoto = appState.selectedPhoto {
-                Text(selectedPhoto.filename)
-                    .font(.title2)
-                    .bold()
+                HStack(alignment: .top, spacing: 16) {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text(selectedPhoto.filename)
+                            .font(.title2)
+                            .bold()
 
-                Text(selectedPhoto.relativePath)
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
+                        Text(selectedPhoto.relativePath)
+                            .font(.callout)
+                            .foregroundStyle(.secondary)
 
-                ZStack {
-                    RoundedRectangle(cornerRadius: 10)
-                        .fill(Color.secondary.opacity(0.12))
+                        ZStack {
+                            RoundedRectangle(cornerRadius: 10)
+                                .fill(Color.secondary.opacity(0.12))
 
-                    if let image {
-                        Image(nsImage: image)
-                            .resizable()
-                            .scaledToFit()
-                            .padding(8)
-                    } else {
-                        ProgressView("Loading image...")
+                            if let image {
+                                Image(nsImage: image)
+                                    .resizable()
+                                    .scaledToFit()
+                                    .padding(8)
+                            } else {
+                                ProgressView("Loading image...")
+                            }
+                        }
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    }
+
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Notes")
+                            .font(.headline)
+
+                        TextEditor(text: Binding(
+                            get: { appState.notesText },
+                            set: { appState.updateNotesDraft($0) }
+                        ))
+                        .font(.body.monospaced())
+                        .frame(minWidth: 300, idealWidth: 360)
+                        .padding(6)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 8)
+                                .stroke(Color.secondary.opacity(0.35), lineWidth: 1)
+                        )
+
+                        if let notesStatusMessage = appState.notesStatusMessage {
+                            Text(notesStatusMessage)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
                     }
                 }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
                 ContentUnavailableView(
                     "No photo selected",
@@ -67,6 +98,19 @@ struct ViewerView: View {
             }
 
             image = NSImage(contentsOf: selectedPhoto.imageURL)
+        }
+    }
+
+    private var saveStateColor: Color {
+        switch appState.notesSaveState {
+        case .clean:
+            return .secondary
+        case .dirty:
+            return .orange
+        case .saving:
+            return .secondary
+        case .error:
+            return .red
         }
     }
 }
