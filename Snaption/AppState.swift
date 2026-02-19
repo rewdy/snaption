@@ -21,12 +21,13 @@ final class AppState: ObservableObject {
     private var autosaveTask: Task<Void, Never>?
     private let autosaveDelayNanoseconds: UInt64 = 600_000_000
 
-    init(
-        projectService: ProjectService = DefaultProjectService(),
-        sidecarService: SidecarService = SidecarService()
-    ) {
+    init(projectService: ProjectService, sidecarService: SidecarService) {
         self.projectService = projectService
         self.sidecarService = sidecarService
+    }
+
+    convenience init() {
+        self.init(projectService: DefaultProjectService(), sidecarService: SidecarService())
     }
 
     func openProjectPicker() {

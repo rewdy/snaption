@@ -19,12 +19,13 @@ final class LibraryViewModel: ObservableObject {
     private var searchIndexTask: Task<Void, Never>?
     private var searchEntriesByPhotoID: [String: SearchEntry] = [:]
 
-    init(
-        mediaIndexer: MediaIndexer = DefaultMediaIndexer(),
-        sidecarService: SidecarService = SidecarService()
-    ) {
+    init(mediaIndexer: MediaIndexer, sidecarService: SidecarService) {
         self.mediaIndexer = mediaIndexer
         self.sidecarService = sidecarService
+    }
+
+    convenience init() {
+        self.init(mediaIndexer: DefaultMediaIndexer(), sidecarService: SidecarService())
     }
 
     deinit {

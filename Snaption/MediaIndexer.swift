@@ -1,10 +1,10 @@
 import Foundation
 
-protocol MediaIndexer {
+protocol MediaIndexer: Sendable {
     func indexPhotos(in rootURL: URL) -> AsyncThrowingStream<[PhotoItem], Error>
 }
 
-struct DefaultMediaIndexer: MediaIndexer {
+struct DefaultMediaIndexer: MediaIndexer, Sendable {
     private let supportedExtensions: Set<String> = ["jpg", "jpeg", "png"]
     private let batchSize = 24
 
@@ -45,7 +45,7 @@ struct DefaultMediaIndexer: MediaIndexer {
                             continue
                         }
 
-                        let relativePath = relativePathFor(fileURL: fileURL, rootURL: rootURL)
+                        let relativePath = Self.relativePathFor(fileURL: fileURL, rootURL: rootURL)
                         let sidecarURL = fileURL.deletingPathExtension().appendingPathExtension("md")
 
                         batch.append(
@@ -75,7 +75,7 @@ struct DefaultMediaIndexer: MediaIndexer {
         }
     }
 
-    private func relativePathFor(fileURL: URL, rootURL: URL) -> String {
+    private static func relativePathFor(fileURL: URL, rootURL: URL) -> String {
         let rootPath = rootURL.standardizedFileURL.path
         let filePath = fileURL.standardizedFileURL.path
         if filePath.hasPrefix(rootPath + "/") {

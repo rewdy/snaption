@@ -10,22 +10,28 @@ final class LibraryAndNavigationTests: XCTestCase {
             makePhotoItem(name: "IMG_0002.jpg"),
             makePhotoItem(name: "IMG_0010.jpg"),
         ]
-        let viewModel = LibraryViewModel(mediaIndexer: MockMediaIndexer(batches: [items]))
+        let viewModel = LibraryViewModel(
+            mediaIndexer: MockMediaIndexer(batches: [items]),
+            sidecarService: SidecarService()
+        )
 
         viewModel.loadProject(rootURL: URL(fileURLWithPath: "/tmp/photos"))
         await waitUntilIndexed(viewModel, expectedCount: 3)
 
-        XCTAssertEqual(viewModel.displayedItems.map(\.filename), ["IMG_0002.jpg", "IMG_0010.jpg", "IMG_0100.jpg"])
+        XCTAssertEqual(viewModel.displayedItems.map { $0.filename }, ["IMG_0002.jpg", "IMG_0010.jpg", "IMG_0100.jpg"])
 
         viewModel.toggleSortDirection()
-        XCTAssertEqual(viewModel.displayedItems.map(\.filename), ["IMG_0100.jpg", "IMG_0010.jpg", "IMG_0002.jpg"])
+        XCTAssertEqual(viewModel.displayedItems.map { $0.filename }, ["IMG_0100.jpg", "IMG_0010.jpg", "IMG_0002.jpg"])
     }
 
     func testLibrarySearchMatchesNotesTagsAndLabels() async throws {
         let one = makePhotoItem(name: "IMG_0001.jpg")
         let two = makePhotoItem(name: "IMG_0002.jpg")
         let three = makePhotoItem(name: "IMG_0003.jpg")
-        let viewModel = LibraryViewModel(mediaIndexer: MockMediaIndexer(batches: [[one, two, three]]))
+        let viewModel = LibraryViewModel(
+            mediaIndexer: MockMediaIndexer(batches: [[one, two, three]]),
+            sidecarService: SidecarService()
+        )
 
         viewModel.loadProject(rootURL: URL(fileURLWithPath: "/tmp/photos"))
         await waitUntilIndexed(viewModel, expectedCount: 3)
@@ -35,13 +41,13 @@ final class LibraryAndNavigationTests: XCTestCase {
         viewModel.updateSearch(for: three, notes: "old album", tags: ["archive"], labels: [])
 
         viewModel.searchQuery = "vacation"
-        XCTAssertEqual(viewModel.displayedItems.map(\.filename), ["IMG_0001.jpg"])
+        XCTAssertEqual(viewModel.displayedItems.map { $0.filename }, ["IMG_0001.jpg"])
 
         viewModel.searchQuery = "mom"
-        XCTAssertEqual(viewModel.displayedItems.map(\.filename), ["IMG_0002.jpg"])
+        XCTAssertEqual(viewModel.displayedItems.map { $0.filename }, ["IMG_0002.jpg"])
 
         viewModel.searchQuery = "archive"
-        XCTAssertEqual(viewModel.displayedItems.map(\.filename), ["IMG_0003.jpg"])
+        XCTAssertEqual(viewModel.displayedItems.map { $0.filename }, ["IMG_0003.jpg"])
     }
 
     func testAppStateNavigationRespectsSortDirectionAndBounds() async throws {
@@ -50,11 +56,14 @@ final class LibraryAndNavigationTests: XCTestCase {
             makePhotoItem(name: "IMG_0001.jpg"),
             makePhotoItem(name: "IMG_0002.jpg"),
         ]
-        let viewModel = LibraryViewModel(mediaIndexer: MockMediaIndexer(batches: [items]))
+        let viewModel = LibraryViewModel(
+            mediaIndexer: MockMediaIndexer(batches: [items]),
+            sidecarService: SidecarService()
+        )
         viewModel.loadProject(rootURL: URL(fileURLWithPath: "/tmp/photos"))
         await waitUntilIndexed(viewModel, expectedCount: 3)
 
-        let appState = AppState(sidecarService: SidecarService())
+        let appState = AppState()
         appState.libraryViewModel = viewModel
 
         appState.openViewer(for: viewModel.displayedItems[0])
