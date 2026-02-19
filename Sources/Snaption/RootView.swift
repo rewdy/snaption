@@ -19,15 +19,13 @@ struct RootView: View {
             .navigationTitle("Snaption")
             .toolbar {
                 ToolbarItemGroup(placement: .navigation) {
-                    Button("Start") {
+                    Button {
                         appState.navigateToStart()
+                    } label: {
+                        Image(systemName: "chevron.left")
                     }
+                    .help("Back")
                     .disabled(appState.route == .start)
-
-                    Button("Library") {
-                        appState.navigateToLibrary()
-                    }
-                    .disabled(appState.route == .library || appState.projectRootURL == nil)
                 }
             }
         }

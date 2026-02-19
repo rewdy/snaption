@@ -5,6 +5,7 @@ import Foundation
 final class AppState: ObservableObject {
     @Published var route: AppRoute = .start
     @Published var projectRootURL: URL?
+    @Published private(set) var lastProjectURL: URL?
     @Published var statusMessage: String?
     @Published var libraryViewModel = LibraryViewModel()
     @Published private(set) var selectedPhotoID: String?
@@ -35,15 +36,23 @@ final class AppState: ObservableObject {
             guard let selectedURL = try projectService.selectProjectFolder() else {
                 return
             }
-
-            projectRootURL = selectedURL
-            statusMessage = "Project opened: \(selectedURL.path)"
-            selectedPhotoID = nil
-            libraryViewModel.loadProject(rootURL: selectedURL)
-            route = .library
+            openProject(at: selectedURL)
         } catch {
             statusMessage = "Failed to open folder: \(error.localizedDescription)"
         }
+    }
+
+    func reopenLastProject() {
+        guard let lastProjectURL else {
+            return
+        }
+
+        guard FileManager.default.fileExists(atPath: lastProjectURL.path) else {
+            statusMessage = "Last project folder is no longer available."
+            return
+        }
+
+        openProject(at: lastProjectURL)
     }
 
     var selectedPhoto: PhotoItem? {
@@ -280,5 +289,14 @@ final class AppState: ObservableObject {
             .split(whereSeparator: \.isWhitespace)
             .joined(separator: " ")
             .trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private func openProject(at url: URL) {
+        projectRootURL = url
+        lastProjectURL = url
+        statusMessage = nil
+        selectedPhotoID = nil
+        libraryViewModel.loadProject(rootURL: url)
+        route = .library
     }
 }

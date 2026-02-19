@@ -4,12 +4,9 @@ struct StartView: View {
     @ObservedObject var appState: AppState
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            Text("Snaption MVP")
-                .font(.largeTitle)
-                .bold()
-
-            Text("Open a root folder to start a project. Milestone 0 wires app state and placeholder navigation.")
+        VStack(spacing: 16) {
+            Text("Open a root folder to start a project.")
+                .multilineTextAlignment(.center)
                 .foregroundStyle(.secondary)
 
             Button("Open Project Folder") {
@@ -17,14 +14,32 @@ struct StartView: View {
             }
             .buttonStyle(.borderedProminent)
 
+            if let lastProjectURL = appState.lastProjectURL {
+                VStack(spacing: 4) {
+                    Text("Last project opened:")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+
+                    Button {
+                        appState.reopenLastProject()
+                    } label: {
+                        Text(lastProjectURL.path)
+                            .font(.footnote)
+                            .lineLimit(1)
+                            .truncationMode(.middle)
+                    }
+                    .buttonStyle(.link)
+                    .frame(maxWidth: 520)
+                }
+            }
+
             if let statusMessage = appState.statusMessage {
                 Text(statusMessage)
                     .font(.footnote)
-                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+                    .foregroundStyle(.red)
             }
-
-            Spacer()
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
     }
 }
