@@ -9,6 +9,8 @@ final class AppState: ObservableObject {
     @Published var libraryViewModel = LibraryViewModel()
     @Published private(set) var selectedPhotoID: String?
     @Published var notesText: String = ""
+    @Published var tags: [String] = []
+    @Published var labels: [PointLabel] = []
     @Published private(set) var notesSaveState: NotesSaveState = .clean
     @Published private(set) var notesStatusMessage: String?
 
@@ -115,6 +117,54 @@ final class AppState: ObservableObject {
         scheduleAutosave()
     }
 
+    func addTag(_ rawTag: String) {
+        let normalized = normalizeTag(rawTag)
+        guard !normalized.isEmpty else {
+            return
+        }
+
+        let exists = tags.contains { $0.caseInsensitiveCompare(normalized) == .orderedSame }
+        guard !exists else {
+            return
+        }
+
+        tags.append(normalized)
+        tags.sort { $0.localizedStandardCompare($1) == .orderedAscending }
+        notesSaveState = .dirty
+        scheduleAutosave()
+    }
+
+    func removeTag(_ tag: String) {
+        tags.removeAll { $0 == tag }
+        notesSaveState = .dirty
+        scheduleAutosave()
+    }
+
+    func addLabel(x: Double, y: Double, text: String) {
+        let trimmedText = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedText.isEmpty else {
+            return
+        }
+
+        let clampedX = min(max(x, 0), 1)
+        let clampedY = min(max(y, 0), 1)
+        let label = PointLabel(
+            id: "lbl-\(UUID().uuidString.prefix(8))",
+            x: clampedX,
+            y: clampedY,
+            text: trimmedText
+        )
+        labels.append(label)
+        notesSaveState = .dirty
+        scheduleAutosave()
+    }
+
+    func removeLabel(id: String) {
+        labels.removeAll { $0.id == id }
+        notesSaveState = .dirty
+        scheduleAutosave()
+    }
+
     private var currentPhotoIndex: Int? {
         guard let selectedPhotoID else {
             return nil
@@ -127,6 +177,8 @@ final class AppState: ObservableObject {
         guard let selectedPhoto else {
             loadedSidecarDocument = nil
             notesText = ""
+            tags = []
+            labels = []
             notesSaveState = .clean
             notesStatusMessage = nil
             return
@@ -136,11 +188,15 @@ final class AppState: ObservableObject {
             let document = try sidecarService.readDocument(for: selectedPhoto)
             loadedSidecarDocument = document
             notesText = document.notesMarkdown
+            tags = document.tags
+            labels = document.labels
             notesSaveState = .clean
             notesStatusMessage = document.parseWarning
         } catch {
             loadedSidecarDocument = nil
             notesText = ""
+            tags = []
+            labels = []
             notesSaveState = .error(error.localizedDescription)
             notesStatusMessage = "Could not read sidecar file."
         }
@@ -198,14 +254,25 @@ final class AppState: ObservableObject {
         var document = loadedSidecarDocument ?? SidecarDocument(
             frontMatterLines: ["photo: \(selectedPhoto.filename)"],
             notesMarkdown: "",
+            tags: [],
+            labels: [],
             hadFrontMatter: false,
             parseWarning: nil
         )
         document.notesMarkdown = notesText
+        document.tags = tags
+        document.labels = labels
 
         try sidecarService.writeDocument(document, for: selectedPhoto)
         loadedSidecarDocument = document
         notesSaveState = .clean
         notesStatusMessage = nil
+    }
+
+    private func normalizeTag(_ input: String) -> String {
+        input
+            .split(whereSeparator: \.isWhitespace)
+            .joined(separator: " ")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
     }
 }

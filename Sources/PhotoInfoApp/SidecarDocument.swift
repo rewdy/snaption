@@ -3,6 +3,8 @@ import Foundation
 struct SidecarDocument {
     var frontMatterLines: [String]
     var notesMarkdown: String
+    var tags: [String]
+    var labels: [PointLabel]
     var hadFrontMatter: Bool
     var parseWarning: String?
 }
