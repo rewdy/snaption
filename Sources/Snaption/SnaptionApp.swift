@@ -1,7 +1,7 @@
 import SwiftUI
 
 @main
-struct PhotoInfoApp: App {
+struct SnaptionApp: App {
     @StateObject private var appState = AppState()
 
     var body: some Scene {

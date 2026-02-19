@@ -16,7 +16,7 @@ struct RootView: View {
                 }
             }
             .padding()
-            .navigationTitle("PhotoInfo")
+            .navigationTitle("Snaption")
             .toolbar {
                 ToolbarItemGroup(placement: .navigation) {
                     Button("Start") {

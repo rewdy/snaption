@@ -5,7 +5,7 @@ struct StartView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            Text("PhotoInfo MVP")
+            Text("Snaption MVP")
                 .font(.largeTitle)
                 .bold()
 

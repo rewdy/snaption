@@ -3,17 +3,17 @@
 import PackageDescription
 
 let package = Package(
-    name: "PhotoInfoApp",
+    name: "Snaption",
     platforms: [
         .macOS(.v14),
     ],
     targets: [
         .executableTarget(
-            name: "PhotoInfoApp"
+            name: "Snaption"
         ),
         .testTarget(
-            name: "PhotoInfoAppTests",
-            dependencies: ["PhotoInfoApp"]
+            name: "SnaptionTests",
+            dependencies: ["Snaption"]
         ),
     ]
 )

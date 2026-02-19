@@ -1,6 +1,6 @@
 import Foundation
 import XCTest
-@testable import PhotoInfoApp
+@testable import Snaption
 
 final class SidecarServiceTests: XCTestCase {
     func testReadMissingSidecarReturnsDefaults() throws {

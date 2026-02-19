@@ -1,6 +1,6 @@
 import Foundation
 import XCTest
-@testable import PhotoInfoApp
+@testable import Snaption
 
 @MainActor
 final class LibraryAndNavigationTests: XCTestCase {
