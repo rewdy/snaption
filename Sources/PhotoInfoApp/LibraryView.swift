@@ -49,6 +49,20 @@ struct LibraryView: View {
                 }
             }
 
+            HStack(spacing: 8) {
+                TextField("Search notes, tags, labels", text: $appState.libraryViewModel.searchQuery)
+                    .textFieldStyle(.roundedBorder)
+                if !appState.libraryViewModel.searchQuery.isEmpty {
+                    Button("Clear") {
+                        appState.libraryViewModel.searchQuery = ""
+                    }
+                    .buttonStyle(.bordered)
+                }
+                Text("\(appState.libraryViewModel.displayedItems.count) shown")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
             if let indexingErrorMessage = appState.libraryViewModel.indexingErrorMessage {
                 Text(indexingErrorMessage)
                     .font(.footnote)

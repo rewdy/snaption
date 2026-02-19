@@ -265,6 +265,12 @@ final class AppState: ObservableObject {
 
         try sidecarService.writeDocument(document, for: selectedPhoto)
         loadedSidecarDocument = document
+        libraryViewModel.updateSearch(
+            for: selectedPhoto,
+            notes: notesText,
+            tags: tags,
+            labels: labels
+        )
         notesSaveState = .clean
         notesStatusMessage = nil
     }
