@@ -16,24 +16,36 @@ struct ViewerView: View {
                     appState.navigateToLibrary()
                 }
                 .buttonStyle(.bordered)
+                .keyboardShortcut("b", modifiers: [.command])
 
                 Button("Previous") {
                     appState.goToPreviousPhoto()
                 }
                 .buttonStyle(.bordered)
                 .disabled(!appState.canGoToPreviousPhoto)
+                .keyboardShortcut(.leftArrow, modifiers: [])
 
                 Button("Next") {
                     appState.goToNextPhoto()
                 }
                 .buttonStyle(.bordered)
                 .disabled(!appState.canGoToNextPhoto)
+                .keyboardShortcut(.rightArrow, modifiers: [])
 
                 Spacer()
 
-                Text(appState.notesSaveState.label)
-                    .font(.footnote)
-                    .foregroundStyle(saveStateColor)
+                HStack(spacing: 6) {
+                    Circle()
+                        .fill(saveStateColor)
+                        .frame(width: 8, height: 8)
+                    Text(appState.notesSaveState.label)
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                }
+                .padding(.horizontal, 10)
+                .padding(.vertical, 6)
+                .background(Color.secondary.opacity(0.12))
+                .clipShape(Capsule())
             }
 
             if let selectedPhoto = appState.selectedPhoto {
@@ -66,10 +78,19 @@ struct ViewerView: View {
                             Text("Annotations")
                                 .font(.headline)
                             Spacer()
+                            Text("\(appState.labels.count) labels")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
                             Button(isPlacingLabel ? "Cancel Label" : "Add Label") {
                                 isPlacingLabel.toggle()
                             }
-                            .buttonStyle(.bordered)
+                            .buttonStyle(.borderedProminent)
+                        }
+
+                        if isPlacingLabel {
+                            Text("Label mode is active. Click the photo to place a point.")
+                                .font(.caption)
+                                .foregroundStyle(.blue)
                         }
 
                         Text("Notes")
@@ -101,11 +122,9 @@ struct ViewerView: View {
                         HStack(spacing: 8) {
                             TextField("Add tag", text: $newTagText)
                                 .textFieldStyle(.roundedBorder)
+                                .onSubmit(addTag)
 
-                            Button("Add") {
-                                appState.addTag(newTagText)
-                                newTagText = ""
-                            }
+                            Button("Add", action: addTag)
                             .buttonStyle(.bordered)
                         }
 
@@ -228,6 +247,11 @@ struct ViewerView: View {
         case .error:
             return .red
         }
+    }
+
+    private func addTag() {
+        appState.addTag(newTagText)
+        newTagText = ""
     }
 }
 
