@@ -62,6 +62,7 @@ For a photo like `IMG_0001.jpg`, Snaption writes `IMG_0001.md` in the same folde
 - `QA_CHECKLIST.md`
 - `PERFORMANCE_PROFILING.md`
 - `PACKAGING_SIGNING_NOTARIZATION.md`
+- `VERSIONING.md`
 - `RELEASE_CHECKLIST.md`
 - `RELEASE_NOTES_TEMPLATE.md`
 - `scripts/release_quickstart.md`

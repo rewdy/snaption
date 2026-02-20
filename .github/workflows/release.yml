@@ -1,0 +1,66 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag (for example: v1.2.0)"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: macos-14
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Resolve tag
+        id: tag
+        run: |
+          if [[ "${{ github.event_name }}" == "push" ]]; then
+            tag="${GITHUB_REF_NAME}"
+          else
+            tag="${{ inputs.tag }}"
+          fi
+
+          if [[ -z "$tag" ]]; then
+            echo "tag is required" >&2
+            exit 1
+          fi
+
+          echo "value=$tag" >> "$GITHUB_OUTPUT"
+
+      - name: Validate tag matches project version
+        run: |
+          chmod +x scripts/*.sh
+          DESTINATION='platform=macOS' ./scripts/validate_release_tag.sh "${{ steps.tag.outputs.value }}"
+
+      - name: Run SnaptionTests
+        run: |
+          xcodebuild test \
+            -project Snaption.xcodeproj \
+            -scheme Snaption \
+            -destination 'platform=macOS' \
+            -only-testing:SnaptionTests
+
+      - name: Build release artifact (local signing mode)
+        run: |
+          LOCAL_RELEASE=1 DESTINATION='platform=macOS' ./scripts/release_build_notarize.sh
+          shasum -a 256 build/Snaption.zip > build/SHA256.txt
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.tag.outputs.value }}
+          target_commitish: ${{ github.sha }}
+          generate_release_notes: true
+          files: |
+            build/Snaption.zip
+            build/SHA256.txt

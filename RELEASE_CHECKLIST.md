@@ -6,6 +6,7 @@ Updated: 2026-02-20
 
 - Target version (`MARKETING_VERSION`):
 - Target build (`CURRENT_PROJECT_VERSION`):
+- Release tag (`v<MARKETING_VERSION>`):
 - Release date:
 - Release owner:
 - Distribution mode: `local` or `developer-id-notarized`
@@ -13,10 +14,12 @@ Updated: 2026-02-20
 ## Pre-Release
 
 1. Confirm version/build values in Xcode project settings.
-2. Run unit tests:
+2. Confirm tag plan matches version exactly (`v<MARKETING_VERSION>`).
+3. Ensure `.github/workflows/release.yml` will run from that tag.
+4. Run unit tests:
 - `xcodebuild test -project Snaption.xcodeproj -scheme Snaption -destination 'platform=macOS,arch=arm64' -only-testing:SnaptionTests`
-3. Complete manual QA from `QA_CHECKLIST.md`.
-4. Confirm no blocker issues in known issues list.
+5. Complete manual QA from `QA_CHECKLIST.md`.
+6. Confirm no blocker issues in known issues list.
 
 ## Package
 
@@ -26,7 +29,10 @@ Updated: 2026-02-20
 2. Developer ID + notarized mode:
 - `./scripts/release_preflight.sh <notary-keychain-profile>`
 - `NOTARY_PROFILE=<notary-keychain-profile> ./scripts/release_build_notarize.sh`
-3. Capture SHA-256 for `build/Snaption.zip`.
+3. Tag release commit and push tag:
+- `git tag v<MARKETING_VERSION>`
+- `git push origin v<MARKETING_VERSION>`
+4. Capture SHA-256 for `build/Snaption.zip`.
 
 ## Smoke Test
 

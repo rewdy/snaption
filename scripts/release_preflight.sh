@@ -3,7 +3,7 @@ set -euo pipefail
 
 PROJECT="Snaption.xcodeproj"
 SCHEME="Snaption"
-DESTINATION="platform=macOS,arch=arm64"
+DESTINATION="${DESTINATION:-platform=macOS,arch=arm64}"
 NOTARY_PROFILE="${1:-}"
 LOCAL_RELEASE="${LOCAL_RELEASE:-0}"
 DEVELOPER_DIR_PATH="${DEVELOPER_DIR_PATH:-/Applications/Xcode.app/Contents/Developer}"

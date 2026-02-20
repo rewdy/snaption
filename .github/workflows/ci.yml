@@ -1,0 +1,44 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+jobs:
+  test:
+    runs-on: macos-14
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Run SnaptionTests
+        run: |
+          xcodebuild test \
+            -project Snaption.xcodeproj \
+            -scheme Snaption \
+            -destination 'platform=macOS' \
+            -only-testing:SnaptionTests
+
+  build-main-artifact:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: test
+    runs-on: macos-14
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build local release artifact
+        run: |
+          chmod +x scripts/*.sh
+          LOCAL_RELEASE=1 DESTINATION='platform=macOS' ./scripts/release_build_notarize.sh
+          shasum -a 256 build/Snaption.zip > build/SHA256.txt
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: snaption-main-build
+          path: |
+            build/Snaption.zip
+            build/SHA256.txt

@@ -20,6 +20,15 @@ Updated: 2026-02-20
 3. Artifact:
 - `build/Snaption.zip` (plus stapled app in `build/export/Snaption.app`)
 
+## GitHub Automation
+
+1. PRs run tests via `.github/workflows/ci.yml`.
+2. Pushes to `main` run tests and upload a local-signed build artifact.
+3. Tagged releases (`v*`) run `.github/workflows/release.yml`:
+- validates `MARKETING_VERSION` matches the tag,
+- runs tests,
+- publishes `Snaption.zip` + `SHA256.txt` to GitHub Releases.
+
 ## Notes
 
 - Local release mode skips notarization and is expected to trigger Gatekeeper friction on other Macs.

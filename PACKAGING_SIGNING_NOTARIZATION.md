@@ -55,6 +55,17 @@ See also:
 - `scripts/release_quickstart.md`
 - `RELEASE_CHECKLIST.md`
 - `RELEASE_NOTES_TEMPLATE.md`
+- `VERSIONING.md`
+
+## GitHub Workflows
+
+1. PR + main CI: `.github/workflows/ci.yml`
+- Runs `SnaptionTests` on PRs and pushes to `main`.
+- Builds a local-signed artifact on `main` pushes and uploads it as a workflow artifact.
+2. Release: `.github/workflows/release.yml`
+- Triggers on tag push (`v*`) or manual dispatch.
+- Validates tag matches `MARKETING_VERSION`.
+- Runs tests, builds `Snaption.zip`, uploads checksum, and publishes GitHub Release assets.
 
 ## Build and Archive
 
