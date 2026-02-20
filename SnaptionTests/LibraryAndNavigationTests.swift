@@ -4,6 +4,36 @@ import XCTest
 
 @MainActor
 final class LibraryAndNavigationTests: XCTestCase {
+    func testLibraryFirstPaintArrivesBeforeIndexingCompletes() async throws {
+        let firstBatch = [
+            makePhotoItem(name: "IMG_0001.jpg"),
+            makePhotoItem(name: "IMG_0002.jpg"),
+        ]
+        let secondBatch = [
+            makePhotoItem(name: "IMG_0003.jpg"),
+            makePhotoItem(name: "IMG_0004.jpg"),
+        ]
+        let viewModel = LibraryViewModel(
+            mediaIndexer: DelayedMockMediaIndexer(firstBatch: firstBatch, secondBatch: secondBatch),
+            sidecarService: SidecarService()
+        )
+
+        viewModel.loadProject(rootURL: URL(fileURLWithPath: "/tmp/photos"))
+        await waitUntil {
+            viewModel.indexedCount >= 2
+        }
+
+        XCTAssertEqual(viewModel.displayedItems.count, 2)
+        XCTAssertTrue(viewModel.isIndexing)
+        XCTAssertNotNil(viewModel.performance.firstPaintSeconds)
+        XCTAssertNil(viewModel.performance.fullIndexSeconds)
+
+        await waitUntilIndexed(viewModel, expectedCount: 4)
+        XCTAssertEqual(viewModel.displayedItems.count, 4)
+        XCTAssertFalse(viewModel.isIndexing)
+        XCTAssertNotNil(viewModel.performance.fullIndexSeconds)
+    }
+
     func testLibrarySortAscendingAndDescendingByFilename() async throws {
         let items = [
             makePhotoItem(name: "IMG_0100.jpg"),
@@ -85,6 +115,39 @@ final class LibraryAndNavigationTests: XCTestCase {
         XCTAssertEqual(appState.selectedPhoto?.filename, "IMG_0002.jpg")
     }
 
+    func testKeyboardEquivalentNavigationDoesNotWrapAtBounds() async throws {
+        let items = [
+            makePhotoItem(name: "IMG_0001.jpg"),
+            makePhotoItem(name: "IMG_0002.jpg"),
+            makePhotoItem(name: "IMG_0003.jpg"),
+        ]
+        let viewModel = LibraryViewModel(
+            mediaIndexer: MockMediaIndexer(batches: [items]),
+            sidecarService: SidecarService()
+        )
+        viewModel.loadProject(rootURL: URL(fileURLWithPath: "/tmp/photos"))
+        await waitUntilIndexed(viewModel, expectedCount: 3)
+
+        let appState = AppState()
+        appState.libraryViewModel = viewModel
+        appState.openViewer(for: viewModel.displayedItems[0])
+        XCTAssertEqual(appState.selectedPhoto?.filename, "IMG_0001.jpg")
+
+        // Equivalent to pressing left on the first item.
+        appState.goToPreviousPhoto()
+        XCTAssertEqual(appState.selectedPhoto?.filename, "IMG_0001.jpg")
+
+        // Equivalent to pressing right repeatedly.
+        appState.goToNextPhoto()
+        XCTAssertEqual(appState.selectedPhoto?.filename, "IMG_0002.jpg")
+        appState.goToNextPhoto()
+        XCTAssertEqual(appState.selectedPhoto?.filename, "IMG_0003.jpg")
+
+        // Equivalent to pressing right on the final item.
+        appState.goToNextPhoto()
+        XCTAssertEqual(appState.selectedPhoto?.filename, "IMG_0003.jpg")
+    }
+
     private func waitUntilIndexed(_ viewModel: LibraryViewModel, expectedCount: Int) async {
         for _ in 0..<100 {
             if viewModel.indexedCount >= expectedCount, !viewModel.isIndexing {
@@ -93,6 +156,16 @@ final class LibraryAndNavigationTests: XCTestCase {
             try? await Task.sleep(nanoseconds: 20_000_000)
         }
         XCTFail("Timed out waiting for indexing to complete")
+    }
+
+    private func waitUntil(_ predicate: @escaping () -> Bool) async {
+        for _ in 0..<100 {
+            if predicate() {
+                return
+            }
+            try? await Task.sleep(nanoseconds: 20_000_000)
+        }
+        XCTFail("Timed out waiting for condition")
     }
 
     private func makePhotoItem(name: String) -> PhotoItem {
@@ -117,6 +190,22 @@ private struct MockMediaIndexer: MediaIndexer {
                 continuation.yield(batch)
             }
             continuation.finish()
+        }
+    }
+}
+
+private struct DelayedMockMediaIndexer: MediaIndexer {
+    let firstBatch: [PhotoItem]
+    let secondBatch: [PhotoItem]
+
+    func indexPhotos(in rootURL: URL) -> AsyncThrowingStream<[PhotoItem], Error> {
+        AsyncThrowingStream { continuation in
+            Task.detached(priority: .utility) {
+                continuation.yield(firstBatch)
+                try? await Task.sleep(nanoseconds: 120_000_000)
+                continuation.yield(secondBatch)
+                continuation.finish()
+            }
         }
     }
 }

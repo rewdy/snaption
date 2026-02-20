@@ -8,6 +8,7 @@ final class LibraryViewModel: ObservableObject {
     @Published private(set) var isIndexing = false
     @Published private(set) var indexedCount = 0
     @Published private(set) var indexingErrorMessage: String?
+    @Published private(set) var performance = LibraryPerformanceSnapshot.empty
     @Published var searchQuery: String = ""
     @Published var sortDirection: FilenameSortDirection = .ascending
 
@@ -17,7 +18,12 @@ final class LibraryViewModel: ObservableObject {
     private let sidecarService: SidecarService
     private var indexingTask: Task<Void, Never>?
     private var searchIndexTask: Task<Void, Never>?
+    private var prefetchTask: Task<Void, Never>?
     private var searchEntriesByPhotoID: [String: SearchEntry] = [:]
+    private let clock = ContinuousClock()
+    private var indexingStartTime: ContinuousClock.Instant?
+    private var didRecordFirstPaint = false
+    private var performanceMonitorTask: Task<Void, Never>?
 
     init(mediaIndexer: MediaIndexer, sidecarService: SidecarService) {
         self.mediaIndexer = mediaIndexer
@@ -31,6 +37,8 @@ final class LibraryViewModel: ObservableObject {
     deinit {
         indexingTask?.cancel()
         searchIndexTask?.cancel()
+        performanceMonitorTask?.cancel()
+        prefetchTask?.cancel()
     }
 
     var displayedItems: [PhotoItem] {
@@ -61,9 +69,16 @@ final class LibraryViewModel: ObservableObject {
         indexedCount = 0
         indexingErrorMessage = nil
         isIndexing = true
+        didRecordFirstPaint = false
+        indexingStartTime = clock.now
+        thumbnailService.resetStats()
+        performance = .empty
+        updatePerformanceSnapshot()
+        startPerformanceMonitoring()
 
         indexingTask?.cancel()
         searchIndexTask?.cancel()
+        prefetchTask?.cancel()
         indexingTask = Task { [weak self] in
             guard let self else {
                 return
@@ -74,16 +89,31 @@ final class LibraryViewModel: ObservableObject {
                     let sortedBatch = batch.sorted(by: Self.filenameOrder)
                     allItems = Self.mergeSorted(allItems, sortedBatch, by: Self.filenameOrder)
                     indexedCount = allItems.count
+                    recordFirstPaintIfNeeded()
+                    updatePerformanceSnapshot()
                     indexSearchContent(for: batch)
                     await Task.yield()
                 }
 
                 isIndexing = false
+                performanceMonitorTask?.cancel()
+                performanceMonitorTask = nil
+                if let start = indexingStartTime {
+                    let duration = start.duration(to: clock.now)
+                    performance.fullIndexSeconds = Self.seconds(from: duration)
+                }
+                updatePerformanceSnapshot()
             } catch is CancellationError {
                 isIndexing = false
+                performanceMonitorTask?.cancel()
+                performanceMonitorTask = nil
+                updatePerformanceSnapshot()
             } catch {
                 isIndexing = false
                 indexingErrorMessage = "Indexing failed: \(error.localizedDescription)"
+                performanceMonitorTask?.cancel()
+                performanceMonitorTask = nil
+                updatePerformanceSnapshot()
             }
         }
     }
@@ -96,33 +126,85 @@ final class LibraryViewModel: ObservableObject {
         searchEntriesByPhotoID[photo.id] = SearchEntry.from(notes: notes, tags: tags, labels: labels)
     }
 
+    func prefetchThumbnails(for items: [PhotoItem], limit: Int = 72) {
+        prefetchTask?.cancel()
+
+        let candidates = Array(items.prefix(limit))
+        guard !candidates.isEmpty else {
+            return
+        }
+
+        let service = thumbnailService
+        prefetchTask = Task.detached(priority: .utility) {
+            for item in candidates {
+                if Task.isCancelled {
+                    return
+                }
+                _ = service.thumbnailData(for: item.imageURL, maxPixelSize: 360)
+            }
+        }
+    }
+
     private func indexSearchContent(for batch: [PhotoItem]) {
         searchIndexTask = Task { [sidecarService] in
-            let updates: [(String, SearchEntry)] = await Task.detached(priority: .utility) {
-                var detachedUpdates: [(String, SearchEntry)] = []
-                detachedUpdates.reserveCapacity(batch.count)
+            var updates: [(String, SearchEntry)] = []
+            updates.reserveCapacity(batch.count)
 
-                for photo in batch {
-                    do {
-                        let sidecar = try sidecarService.readDocument(for: photo)
-                        let entry = SearchEntry.from(
-                            notes: sidecar.notesMarkdown,
-                            tags: sidecar.tags,
-                            labels: sidecar.labels
-                        )
-                        detachedUpdates.append((photo.id, entry))
-                    } catch {
-                        continue
-                    }
+            for photo in batch {
+                do {
+                    let sidecar = try sidecarService.readDocument(for: photo)
+                    let entry = SearchEntry.from(
+                        notes: sidecar.notesMarkdown,
+                        tags: sidecar.tags,
+                        labels: sidecar.labels
+                    )
+                    updates.append((photo.id, entry))
+                } catch {
+                    continue
                 }
-
-                return detachedUpdates
-            }.value
+            }
 
             for (photoID, entry) in updates {
                 searchEntriesByPhotoID[photoID] = entry
             }
         }
+    }
+
+    private func recordFirstPaintIfNeeded() {
+        guard !didRecordFirstPaint, indexedCount > 0, let start = indexingStartTime else {
+            return
+        }
+
+        didRecordFirstPaint = true
+        let duration = start.duration(to: clock.now)
+        performance.firstPaintSeconds = Self.seconds(from: duration)
+    }
+
+    private func updatePerformanceSnapshot() {
+        performance.indexedCount = indexedCount
+        performance.thumbnailStats = thumbnailService.statsSnapshot()
+        performance.memoryMB = ProcessMemory.residentMemoryMB()
+    }
+
+    private func startPerformanceMonitoring() {
+        performanceMonitorTask?.cancel()
+        performanceMonitorTask = Task { [weak self] in
+            guard let self else {
+                return
+            }
+
+            while !Task.isCancelled, isIndexing {
+                updatePerformanceSnapshot()
+                try? await Task.sleep(nanoseconds: 500_000_000)
+            }
+        }
+    }
+
+    private static func seconds(from duration: Duration) -> Double {
+        let components = duration.components
+        let seconds = Double(components.seconds)
+        let attoseconds = Double(components.attoseconds) / 1_000_000_000_000_000_000.0
+        return seconds + attoseconds
     }
 
     private static func filenameOrder(lhs: PhotoItem, rhs: PhotoItem) -> Bool {

@@ -37,6 +37,7 @@ Primary users are the author and parents, with an emphasis on ease of use, offli
 - Backup/version files (`.bak`) and in-app history.
 - Advanced sorting modes (date, custom sort).
 - Additional formats beyond JPG/PNG.
+- Presentation-mode display picker when multiple external displays are connected.
 - App Store distribution requirements.
 
 ## 3) Users and Usage Model

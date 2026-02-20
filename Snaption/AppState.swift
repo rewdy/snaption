@@ -18,22 +18,41 @@ final class AppState: ObservableObject {
     @Published var labels: [PointLabel] = []
     @Published private(set) var notesSaveState: NotesSaveState = .clean
     @Published private(set) var notesStatusMessage: String?
+    @Published private(set) var hasExternalDisplay = false
+    @Published private(set) var isPresentationModeEnabled = false
 
     private let projectService: ProjectService
     private let sidecarService: SidecarService
+    private let displayMonitor: DisplayMonitoring
+    private let presentationWindowController: PresentationWindowControlling
     private var loadedSidecarDocument: SidecarDocument?
     private var autosaveTask: Task<Void, Never>?
     private var libraryViewModelChangeCancellable: AnyCancellable?
     private let autosaveDelayNanoseconds: UInt64 = 600_000_000
 
-    init(projectService: ProjectService, sidecarService: SidecarService) {
+    init(
+        projectService: ProjectService,
+        sidecarService: SidecarService,
+        displayMonitor: DisplayMonitoring,
+        presentationWindowController: PresentationWindowControlling
+    ) {
         self.projectService = projectService
         self.sidecarService = sidecarService
+        self.displayMonitor = displayMonitor
+        self.presentationWindowController = presentationWindowController
         bindLibraryViewModelChanges()
+        displayMonitor.startMonitoring { [weak self] hasExternalDisplay in
+            self?.handleDisplayAvailabilityChange(hasExternalDisplay)
+        }
     }
 
     convenience init() {
-        self.init(projectService: DefaultProjectService(), sidecarService: SidecarService())
+        self.init(
+            projectService: DefaultProjectService(),
+            sidecarService: SidecarService(),
+            displayMonitor: DisplayMonitor(),
+            presentationWindowController: PresentationWindowController()
+        )
     }
 
     func openProjectPicker() {
@@ -89,6 +108,7 @@ final class AppState: ObservableObject {
         selectedPhotoID = item.id
         loadNotesForSelectedPhoto()
         route = .viewer
+        syncPresentationOutput()
     }
 
     func goToPreviousPhoto() {
@@ -99,6 +119,7 @@ final class AppState: ObservableObject {
         flushPendingNotesIfNeeded()
         selectedPhotoID = libraryViewModel.displayedItems[currentPhotoIndex - 1].id
         loadNotesForSelectedPhoto()
+        syncPresentationOutput()
     }
 
     func goToNextPhoto() {
@@ -114,16 +135,27 @@ final class AppState: ObservableObject {
         flushPendingNotesIfNeeded()
         selectedPhotoID = libraryViewModel.displayedItems[nextIndex].id
         loadNotesForSelectedPhoto()
+        syncPresentationOutput()
     }
 
     func navigateToLibrary() {
         flushPendingNotesIfNeeded()
         route = .library
+        syncPresentationOutput()
     }
 
     func navigateToStart() {
         flushPendingNotesIfNeeded()
         route = .start
+        syncPresentationOutput()
+    }
+
+    func setPresentationModeEnabled(_ isEnabled: Bool) {
+        if isEnabled {
+            enablePresentationMode()
+        } else {
+            disablePresentationMode()
+        }
     }
 
     func updateNotesDraft(_ newValue: String) {
@@ -311,5 +343,51 @@ final class AppState: ObservableObject {
         selectedPhotoID = nil
         libraryViewModel.loadProject(rootURL: url)
         route = .library
+        syncPresentationOutput()
+    }
+
+    private func enablePresentationMode() {
+        guard hasExternalDisplay else {
+            statusMessage = "Presentation mode requires a second display."
+            isPresentationModeEnabled = false
+            return
+        }
+
+        isPresentationModeEnabled = true
+        presentationWindowController.showWindow()
+        syncPresentationOutput()
+    }
+
+    private func disablePresentationMode() {
+        isPresentationModeEnabled = false
+        presentationWindowController.hideWindow()
+    }
+
+    private func handleDisplayAvailabilityChange(_ hasExternalDisplay: Bool) {
+        self.hasExternalDisplay = hasExternalDisplay
+
+        guard isPresentationModeEnabled else {
+            return
+        }
+
+        if hasExternalDisplay {
+            presentationWindowController.showWindow()
+            syncPresentationOutput()
+        } else {
+            disablePresentationMode()
+            statusMessage = "Presentation mode ended because no second display is available."
+        }
+    }
+
+    private func syncPresentationOutput() {
+        guard isPresentationModeEnabled else {
+            return
+        }
+
+        if route == .viewer, let selectedPhoto {
+            presentationWindowController.updatePhoto(url: selectedPhoto.imageURL)
+        } else {
+            presentationWindowController.updatePhoto(url: nil)
+        }
     }
 }

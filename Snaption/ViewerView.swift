@@ -46,6 +46,21 @@ struct ViewerView: View {
                 .padding(.vertical, 6)
                 .background(Color.secondary.opacity(0.12))
                 .clipShape(Capsule())
+
+                Toggle(
+                    "Presentation Mode",
+                    isOn: Binding(
+                        get: { appState.isPresentationModeEnabled },
+                        set: { appState.setPresentationModeEnabled($0) }
+                    )
+                )
+                .toggleStyle(.switch)
+                .disabled(!appState.hasExternalDisplay)
+                .help(
+                    appState.hasExternalDisplay
+                        ? "Show the selected photo on the second display."
+                        : "Connect a second display to enable presentation mode."
+                )
             }
 
             if let selectedPhoto = appState.selectedPhoto {

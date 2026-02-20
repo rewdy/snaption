@@ -30,11 +30,14 @@ Updated: 2026-02-19
   - nested observable update propagation behavior
   - keyboard navigation behavior
   - malformed/partial sidecar edge cases
-- Resolve remaining Xcode warnings that are not noise.
+- Resolve remaining Xcode warnings that are not noise (in progress: destination warning removed, one toolchain noise message remains).
 
 4. Packaging readiness (after QA confidence)
 - Define signing/notarization path for direct-download distribution.
 - Add a lightweight release checklist (versioning, archive, smoke test).
+- Use automation scripts:
+  - `scripts/release_preflight.sh`
+  - `scripts/release_build_notarize.sh`
 
 ## 3) Suggested First Task Next Session
 

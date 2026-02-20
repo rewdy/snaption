@@ -75,7 +75,7 @@ struct DefaultMediaIndexer: MediaIndexer, Sendable {
         }
     }
 
-    private static func relativePathFor(fileURL: URL, rootURL: URL) -> String {
+    nonisolated private static func relativePathFor(fileURL: URL, rootURL: URL) -> String {
         let rootPath = rootURL.standardizedFileURL.path
         let filePath = fileURL.standardizedFileURL.path
         if filePath.hasPrefix(rootPath + "/") {

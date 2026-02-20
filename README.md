@@ -35,7 +35,10 @@ For a photo like `IMG_0001.jpg`, Snaption writes `IMG_0001.md` in the same folde
 
 - Open in Xcode: `Snaption.xcodeproj`
 - Run unit tests:
-  - `xcodebuild test -project Snaption.xcodeproj -scheme Snaption -destination 'platform=macOS' -only-testing:SnaptionTests`
+  - `xcodebuild test -project Snaption.xcodeproj -scheme Snaption -destination 'platform=macOS,arch=arm64' -only-testing:SnaptionTests`
+- Release preflight:
+  - `./scripts/release_preflight.sh`
+  - No Apple Developer account yet: `LOCAL_RELEASE=1 ./scripts/release_preflight.sh`
 
 ## ROADMAP
 
@@ -56,3 +59,9 @@ For a photo like `IMG_0001.jpg`, Snaption writes `IMG_0001.md` in the same folde
 - `TECHNICAL_DESIGN.md`
 - `EXECUTION_PLAN.md`
 - `NEXT_STEPS.md`
+- `QA_CHECKLIST.md`
+- `PERFORMANCE_PROFILING.md`
+- `PACKAGING_SIGNING_NOTARIZATION.md`
+- `RELEASE_CHECKLIST.md`
+- `RELEASE_NOTES_TEMPLATE.md`
+- `scripts/release_quickstart.md`
