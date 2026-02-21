@@ -280,13 +280,14 @@ struct RootView: View {
                     .foregroundStyle(audioRecordingColor)
             }
             .help(appState.isAudioRecordingEnabled ? "Stop recording" : "Start recording")
-            .popover(isPresented: Binding(
-                get: { appState.isAudioRecordingEnabled },
-                set: { _ in }
-            )) {
-                VStack(alignment: .leading, spacing: 12) {
-                    Text("Recording Options")
+            .sheet(isPresented: $appState.isAudioStartDialogPresented) {
+                VStack(alignment: .leading, spacing: 16) {
+                    Text("Start Recording")
                         .font(.headline)
+                    Text("Choose what to save for this recording session.")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+
                     Toggle("Save original recording files", isOn: $appState.shouldSaveRecordingFiles)
                     Toggle(
                         "Update note with recording text",
@@ -304,9 +305,20 @@ struct RootView: View {
                         )
                     )
                     .disabled(!appState.isAudioSummaryAvailable || !appState.shouldAppendRecordingText)
+
+                    HStack {
+                        Spacer()
+                        Button("Cancel") {
+                            appState.cancelStartAudioRecording()
+                        }
+                        Button("Start Recording") {
+                            appState.confirmStartAudioRecording()
+                        }
+                        .buttonStyle(.borderedProminent)
+                    }
                 }
                 .padding()
-                .frame(width: 280)
+                .frame(width: 360)
             }
 
             Menu {

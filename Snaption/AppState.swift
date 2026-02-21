@@ -27,6 +27,7 @@ final class AppState: ObservableObject {
     @Published var isFaceDisableDialogPresented = false
     @Published var isAudioRecordingEnabled = false
     @Published var isAudioRecordingBlinking = false
+    @Published var isAudioStartDialogPresented = false
     @Published var shouldSaveRecordingFiles = true
     @Published var shouldAppendRecordingText = false
     @Published var shouldAppendRecordingSummary = false
@@ -179,13 +180,26 @@ final class AppState: ObservableObject {
             isAudioTranscriptionAvailable = false
             isAudioSummaryAvailable = false
         } else {
-            isAudioTranscriptionAvailable = audioTranscriptionService.isAvailable()
-            isAudioSummaryAvailable = audioSummaryService.isAvailable()
-            shouldAppendRecordingText = isAudioTranscriptionAvailable
-            shouldAppendRecordingSummary = isAudioTranscriptionAvailable && isAudioSummaryAvailable
-            isAudioRecordingEnabled = true
-            startAudioRecordingIfNeeded()
+            prepareAudioRecordingOptions()
+            isAudioStartDialogPresented = true
         }
+    }
+
+    func confirmStartAudioRecording() {
+        isAudioRecordingEnabled = true
+        isAudioStartDialogPresented = false
+        startAudioRecordingIfNeeded()
+    }
+
+    func cancelStartAudioRecording() {
+        isAudioStartDialogPresented = false
+    }
+
+    private func prepareAudioRecordingOptions() {
+        isAudioTranscriptionAvailable = audioTranscriptionService.isAvailable()
+        isAudioSummaryAvailable = audioSummaryService.isAvailable()
+        shouldAppendRecordingText = isAudioTranscriptionAvailable
+        shouldAppendRecordingSummary = isAudioTranscriptionAvailable && isAudioSummaryAvailable
     }
 
     private func startAudioRecordingIfNeeded() {
