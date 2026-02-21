@@ -11,6 +11,7 @@ struct ViewerView: View {
     @State private var editRequest: LabelEditRequest?
     @State private var faceObservations: [FaceObservation] = []
     @State private var recordings: [RecordingItem] = []
+    @State private var recordingToTrash: RecordingItem?
     @StateObject private var audioPlayer = AudioPlayerController()
     private let faceDetectionService = FaceDetectionService()
 
@@ -120,7 +121,7 @@ struct ViewerView: View {
                             ScrollView {
                                 VStack(alignment: .leading, spacing: 6) {
                                     ForEach(recordings) { recording in
-                                        HStack(spacing: 8) {
+                                        HStack(spacing: 6) {
                                             Text(recording.modifiedAt, style: .date)
                                                 .font(.caption2)
                                                 .foregroundStyle(.secondary)
@@ -131,33 +132,49 @@ struct ViewerView: View {
                                                 .lineLimit(1)
                                                 .help(recording.url.lastPathComponent)
                                             Spacer()
-                                            Button {
-                                                audioPlayer.togglePlayback(for: recording.url)
-                                            } label: {
-                                                ZStack {
-                                                    AudioProgressRing(
-                                                        progress: audioPlayer.progress(for: recording.url),
-                                                        isActive: audioPlayer.isPlaying(recording.url)
-                                                    )
-                                                    Image(systemName: audioPlayer.isPlaying(recording.url) ? "pause.fill" : "play.fill")
+                                            HStack(spacing: 4) {
+                                                Button {
+                                                    audioPlayer.togglePlayback(for: recording.url)
+                                                } label: {
+                                                    ZStack {
+                                                        AudioProgressRing(
+                                                            progress: audioPlayer.progress(for: recording.url),
+                                                            isActive: audioPlayer.isPlaying(recording.url)
+                                                        )
+                                                        Image(systemName: audioPlayer.isPlaying(recording.url) ? "pause.fill" : "play.fill")
+                                                    }
                                                 }
-                                            }
-                                            .buttonStyle(.bordered)
-                                            .controlSize(.small)
-                                            .clipShape(Circle())
-                                            Button {
-                                                openRecordingInFinder(recording.url)
-                                            } label: {
-                                                ZStack {
-                                                    AudioProgressRing(progress: 1, isActive: false)
-                                                        .hidden()
-                                                    Image(systemName: "folder")
+                                                .buttonStyle(.bordered)
+                                                .controlSize(.small)
+                                                .clipShape(Circle())
+                                                Button {
+                                                    openRecordingInFinder(recording.url)
+                                                } label: {
+                                                    ZStack {
+                                                        AudioProgressRing(progress: 1, isActive: false)
+                                                            .hidden()
+                                                        Image(systemName: "folder")
+                                                    }
                                                 }
+                                                .buttonStyle(.bordered)
+                                                .controlSize(.small)
+                                                .clipShape(Circle())
+                                                .help("Show Recording in Finder")
+                                                Button {
+                                                    recordingToTrash = recording
+                                                } label: {
+                                                    ZStack {
+                                                        AudioProgressRing(progress: 1, isActive: false)
+                                                            .hidden()
+                                                        Image(systemName: "trash")
+                                                            .foregroundStyle(.red)
+                                                    }
+                                                }
+                                                .buttonStyle(.bordered)
+                                                .controlSize(.small)
+                                                .clipShape(Circle())
+                                                .help("Move Recording to Trash")
                                             }
-                                            .buttonStyle(.bordered)
-                                            .controlSize(.small)
-                                            .clipShape(Circle())
-                                            .help("Show Recording in Finder")
                                         }
                                         .font(.caption)
                                     }
@@ -326,6 +343,28 @@ struct ViewerView: View {
                 faceObservations = []
             }
         }
+        .confirmationDialog(
+            "Move recording to Trash?",
+            isPresented: Binding(
+                get: { recordingToTrash != nil },
+                set: { if !$0 { recordingToTrash = nil } }
+            ),
+            titleVisibility: .visible
+        ) {
+            Button("Move to Trash", role: .destructive) {
+                if let recordingToTrash {
+                    trashRecording(recordingToTrash)
+                }
+                recordingToTrash = nil
+            }
+            Button("Cancel", role: .cancel) {
+                recordingToTrash = nil
+            }
+        } message: {
+            if let recordingToTrash {
+                Text(recordingToTrash.url.lastPathComponent)
+            }
+        }
     }
 
     private func addTag() {
@@ -369,6 +408,14 @@ struct ViewerView: View {
         NSWorkspace.shared.activateFileViewerSelecting([url])
     }
 
+    private func trashRecording(_ recording: RecordingItem) {
+        if audioPlayer.isPlaying(recording.url) {
+            audioPlayer.stop()
+        }
+        _ = try? FileManager.default.trashItem(at: recording.url, resultingItemURL: nil)
+        recordings = loadRecordings(for: recording.photo)
+    }
+
     private func featurePrintForPoint(_ normalizedPoint: CGPoint) -> Data? {
         guard appState.faceFeaturesEnabled else {
             return nil
@@ -401,7 +448,7 @@ struct ViewerView: View {
                 guard let modifiedAt = values?.contentModificationDate else {
                     return nil
                 }
-                return RecordingItem(url: url, modifiedAt: modifiedAt)
+                return RecordingItem(url: url, modifiedAt: modifiedAt, photo: photo)
             }
             .sorted { $0.modifiedAt > $1.modifiedAt }
     }
@@ -793,10 +840,12 @@ private struct RecordingItem: Identifiable {
     let id: String
     let url: URL
     let modifiedAt: Date
+    let photo: PhotoItem
 
-    init(url: URL, modifiedAt: Date) {
+    init(url: URL, modifiedAt: Date, photo: PhotoItem) {
         self.url = url
         self.modifiedAt = modifiedAt
+        self.photo = photo
         self.id = url.path
     }
 }
