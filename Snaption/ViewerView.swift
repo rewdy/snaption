@@ -295,6 +295,12 @@ struct ViewerView: View {
             recordings = loadRecordings(for: selectedPhoto)
             audioPlayer.stop()
         }
+        .task(id: appState.recordingRefreshToken) {
+            guard let selectedPhoto = appState.selectedPhoto else {
+                return
+            }
+            recordings = loadRecordings(for: selectedPhoto)
+        }
         .task(id: FaceDetectionKey(
             photoID: appState.selectedPhotoID,
             isEnabled: appState.faceFeaturesEnabled,

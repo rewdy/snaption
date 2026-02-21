@@ -2,6 +2,7 @@ import SwiftUI
 
 struct RootView: View {
     @ObservedObject var appState: AppState
+    @State private var isRecordingPulseOn = false
 
     var body: some View {
         NavigationStack {
@@ -98,11 +99,8 @@ struct RootView: View {
         return ""
     }
 
-    private var audioRecordingColor: Color {
-        if appState.isAudioRecordingBlinking {
-            return .red.opacity(0.2)
-        }
-        return appState.isAudioRecordingEnabled ? .red : .primary
+    private var recordingPulseColor: Color {
+        isRecordingPulseOn ? .red : .red.opacity(0.7)
     }
 
     @ViewBuilder
@@ -276,10 +274,47 @@ struct RootView: View {
             Button {
                 appState.toggleAudioRecording()
             } label: {
-                Image(systemName: appState.isAudioRecordingEnabled ? "mic.fill" : "mic")
-                    .foregroundStyle(audioRecordingColor)
+                if appState.isAudioRecordingBlinking {
+                    ZStack {
+                        Circle()
+                            .fill(.green)
+                        Image(systemName: "checkmark")
+                            .foregroundStyle(.white)
+                            .font(.system(size: 8, weight: .bold))
+                            
+                    }
+                    .frame(width: 22, height: 22)
+                } else if appState.isAudioRecordingEnabled {
+                    ZStack {
+                        Circle()
+                            .fill(recordingPulseColor)
+                        Image(systemName: "mic.fill")
+                            .foregroundStyle(.white)
+                            .font(.system(size: 10))
+                        
+                    }
+                    .frame(width: 22, height: 22)
+                    .animation(.easeInOut(duration: 1).repeatForever(autoreverses: true), value: isRecordingPulseOn)
+                } else {
+                    Image(systemName: "mic")
+                        .foregroundStyle(.primary)
+                }
             }
             .help(appState.isAudioRecordingEnabled ? "Stop recording" : "Start recording")
+            .onAppear {
+                if appState.isAudioRecordingEnabled {
+                    isRecordingPulseOn.toggle()
+                } else {
+                    isRecordingPulseOn = false
+                }
+            }
+            .onChange(of: appState.isAudioRecordingEnabled) { _, isEnabled in
+                if isEnabled {
+                    isRecordingPulseOn.toggle()
+                } else {
+                    isRecordingPulseOn = false
+                }
+            }
             .sheet(isPresented: $appState.isAudioStartDialogPresented) {
                 VStack(alignment: .leading, spacing: 16) {
                     Text("Start Recording")
@@ -288,7 +323,13 @@ struct RootView: View {
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
 
-                    Toggle("Save original recording files", isOn: $appState.shouldSaveRecordingFiles)
+                    Toggle(
+                        "Save original recording files",
+                        isOn: Binding(
+                            get: { appState.shouldSaveRecordingFiles },
+                            set: { appState.setSaveRecordingFiles($0) }
+                        )
+                    )
                     Toggle(
                         "Update note with recording text",
                         isOn: Binding(
@@ -305,6 +346,19 @@ struct RootView: View {
                         )
                     )
                     .disabled(!appState.isAudioSummaryAvailable || !appState.shouldAppendRecordingText)
+
+                    VStack(alignment: .leading, spacing: 4) {
+                        Toggle(
+                            "Auto-record enabled",
+                            isOn: Binding(
+                                get: { appState.isAutoRecordingEnabled },
+                                set: { appState.setAutoRecordingEnabled($0) }
+                            )
+                        )
+                        Text("Recordings start and stop as you move between photos automatically.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
 
                     HStack {
                         Spacer()

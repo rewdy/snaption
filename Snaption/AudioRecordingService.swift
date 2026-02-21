@@ -24,6 +24,19 @@ final class AudioRecordingService: NSObject, AVAudioRecorderDelegate {
         recorder = nil
     }
 
+    func durationSeconds(at url: URL) -> Double? {
+        do {
+            let file = try AVAudioFile(forReading: url)
+            let sampleRate = file.processingFormat.sampleRate
+            guard sampleRate > 0 else {
+                return nil
+            }
+            return Double(file.length) / sampleRate
+        } catch {
+            return nil
+        }
+    }
+
     func trimSilence(at url: URL) async -> URL {
         do {
             let file = try AVAudioFile(forReading: url)

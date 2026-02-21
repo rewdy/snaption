@@ -34,6 +34,8 @@ final class AppState: ObservableObject {
     @Published var shouldAppendRecordingSummary = false
     @Published var isAudioTranscriptionAvailable = false
     @Published var isAudioSummaryAvailable = false
+    @Published var isAutoRecordingEnabled = true
+    @Published var recordingRefreshToken = UUID()
 
     var selectedSidecarURL: URL? {
         selectedPhoto?.sidecarURL
@@ -64,6 +66,12 @@ final class AppState: ObservableObject {
     private var libraryViewModelChangeCancellable: AnyCancellable?
     private let autosaveDelayNanoseconds: UInt64 = 600_000_000
     private let summaryMinimumWordCount = 100
+    private var shouldStartManualRecording = false
+
+    private static let autoRecordPreferenceKey = "audio.autoRecordEnabled"
+    private static let saveFilesPreferenceKey = "audio.saveRecordingFiles"
+    private static let appendTextPreferenceKey = "audio.appendRecordingText"
+    private static let appendSummaryPreferenceKey = "audio.appendRecordingSummary"
 
     init(
         projectService: ProjectService,
@@ -75,6 +83,7 @@ final class AppState: ObservableObject {
         self.sidecarService = sidecarService
         self.displayMonitor = displayMonitor
         self.presentationWindowController = presentationWindowController
+        loadAudioPreferences()
         bindLibraryViewModelChanges()
         displayMonitor.startMonitoring { [weak self] hasExternalDisplay in
             self?.handleDisplayAvailabilityChange(hasExternalDisplay)
@@ -208,6 +217,7 @@ final class AppState: ObservableObject {
     func confirmStartAudioRecording() {
         isAudioRecordingEnabled = true
         isAudioStartDialogPresented = false
+        shouldStartManualRecording = true
         startAudioRecordingIfNeeded()
     }
 
@@ -218,16 +228,23 @@ final class AppState: ObservableObject {
     private func prepareAudioRecordingOptions() {
         isAudioTranscriptionAvailable = audioTranscriptionService.isAvailable()
         isAudioSummaryAvailable = audioSummaryService.isAvailable()
-        shouldAppendRecordingText = isAudioTranscriptionAvailable
-        shouldAppendRecordingSummary = isAudioTranscriptionAvailable && isAudioSummaryAvailable
+        isAutoRecordingEnabled = preferredBool(Self.autoRecordPreferenceKey, default: true)
+        shouldSaveRecordingFiles = preferredBool(Self.saveFilesPreferenceKey, default: true)
+        let preferredAppendText = preferredBool(Self.appendTextPreferenceKey, default: false)
+        let preferredAppendSummary = preferredBool(Self.appendSummaryPreferenceKey, default: false)
+        shouldAppendRecordingText = isAudioTranscriptionAvailable && preferredAppendText
+        shouldAppendRecordingSummary = isAudioSummaryAvailable && shouldAppendRecordingText && preferredAppendSummary
     }
 
     private func startAudioRecordingIfNeeded() {
         guard isAudioRecordingEnabled, let selectedPhoto else {
             return
         }
+        if !isAutoRecordingEnabled && !shouldStartManualRecording {
+            return
+        }
 
-        blinkAudioRecordingIndicator()
+        shouldStartManualRecording = false
         let url = audioRecordingURL(for: selectedPhoto)
         pendingAudioRecording = PendingAudioRecording(
             url: url,
@@ -247,6 +264,7 @@ final class AppState: ObservableObject {
     }
 
     private func stopAudioRecordingIfNeeded() {
+        let shouldShowCompletionIndicator = pendingAudioRecording != nil
         audioRecordingTask?.cancel()
         audioRecordingTask = nil
         audioRecordingService.stopRecording()
@@ -256,19 +274,17 @@ final class AppState: ObservableObject {
                 await self?.processRecording(pending)
             }
         }
+        if shouldShowCompletionIndicator {
+            blinkAudioRecordingIndicator()
+        }
     }
 
     private func blinkAudioRecordingIndicator() {
         audioBlinkTask?.cancel()
-        isAudioRecordingBlinking = true
         audioBlinkTask = Task { [weak self] in
             guard let self else { return }
-            for _ in 0..<3 {
-                await MainActor.run { self.isAudioRecordingBlinking.toggle() }
-                try? await Task.sleep(nanoseconds: 200_000_000)
-                await MainActor.run { self.isAudioRecordingBlinking.toggle() }
-                try? await Task.sleep(nanoseconds: 200_000_000)
-            }
+            await MainActor.run { self.isAudioRecordingBlinking = true }
+            try? await Task.sleep(nanoseconds: 1_000_000_000)
             await MainActor.run { self.isAudioRecordingBlinking = false }
         }
     }
@@ -283,6 +299,15 @@ final class AppState: ObservableObject {
     }
 
     private func processRecording(_ pending: PendingAudioRecording) async {
+        if let duration = audioRecordingService.durationSeconds(at: pending.url),
+           duration < 2 {
+            trashAudioFile(at: pending.url)
+            await MainActor.run { [weak self] in
+                self?.recordingRefreshToken = UUID()
+            }
+            return
+        }
+
         let finalURL = await audioRecordingService.trimSilence(at: pending.url)
 
         if shouldAppendRecordingText {
@@ -291,6 +316,10 @@ final class AppState: ObservableObject {
 
         if !shouldSaveRecordingFiles {
             trashAudioFile(at: finalURL)
+        }
+
+        await MainActor.run { [weak self] in
+            self?.recordingRefreshToken = UUID()
         }
     }
 
@@ -413,13 +442,40 @@ final class AppState: ObservableObject {
 
     func setAppendRecordingText(_ isOn: Bool) {
         shouldAppendRecordingText = isOn
+        userDefaults.set(isOn, forKey: Self.appendTextPreferenceKey)
         if !isOn {
             shouldAppendRecordingSummary = false
+            userDefaults.set(false, forKey: Self.appendSummaryPreferenceKey)
         }
     }
 
     func setAppendRecordingSummary(_ isOn: Bool) {
         shouldAppendRecordingSummary = isOn
+        userDefaults.set(isOn, forKey: Self.appendSummaryPreferenceKey)
+    }
+
+    func setSaveRecordingFiles(_ isOn: Bool) {
+        shouldSaveRecordingFiles = isOn
+        userDefaults.set(isOn, forKey: Self.saveFilesPreferenceKey)
+    }
+
+    func setAutoRecordingEnabled(_ isOn: Bool) {
+        isAutoRecordingEnabled = isOn
+        userDefaults.set(isOn, forKey: Self.autoRecordPreferenceKey)
+    }
+
+    private func loadAudioPreferences() {
+        isAutoRecordingEnabled = preferredBool(Self.autoRecordPreferenceKey, default: true)
+        shouldSaveRecordingFiles = preferredBool(Self.saveFilesPreferenceKey, default: true)
+        shouldAppendRecordingText = preferredBool(Self.appendTextPreferenceKey, default: false)
+        shouldAppendRecordingSummary = preferredBool(Self.appendSummaryPreferenceKey, default: false)
+    }
+
+    private func preferredBool(_ key: String, default defaultValue: Bool) -> Bool {
+        guard userDefaults.object(forKey: key) != nil else {
+            return defaultValue
+        }
+        return userDefaults.bool(forKey: key)
     }
 
     func setPresentationModeEnabled(_ isEnabled: Bool) {
