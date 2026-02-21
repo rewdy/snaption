@@ -34,19 +34,6 @@ struct ViewerView: View {
 
                 Spacer()
 
-                HStack(spacing: 6) {
-                    Circle()
-                        .fill(saveStateColor)
-                        .frame(width: 8, height: 8)
-                    Text(appState.notesSaveState.label)
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
-                }
-                .padding(.horizontal, 10)
-                .padding(.vertical, 6)
-                .background(Color.secondary.opacity(0.12))
-                .clipShape(Capsule())
-
                 Toggle(
                     "Presentation Mode",
                     isOn: Binding(
@@ -66,9 +53,26 @@ struct ViewerView: View {
             if let selectedPhoto = appState.selectedPhoto {
                 HStack(alignment: .top, spacing: 16) {
                     VStack(alignment: .leading, spacing: 8) {
-                        Text(selectedPhoto.filename)
-                            .font(.title2)
-                            .bold()
+                        HStack(spacing: 8) {
+                            Text(selectedPhoto.filename)
+                                .font(.title2)
+                                .bold()
+
+                            Spacer()
+
+                            HStack(spacing: 6) {
+                                Circle()
+                                    .fill(saveStateColor)
+                                    .frame(width: 8, height: 8)
+                                Text(appState.notesSaveState.label)
+                                    .font(.footnote)
+                                    .foregroundStyle(.secondary)
+                            }
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 6)
+                            .background(Color.secondary.opacity(0.12))
+                            .clipShape(Capsule())
+                        }
 
                         Text(selectedPhoto.relativePath)
                             .font(.callout)

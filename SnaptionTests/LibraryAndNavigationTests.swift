@@ -148,6 +148,57 @@ final class LibraryAndNavigationTests: XCTestCase {
         XCTAssertEqual(appState.selectedPhoto?.filename, "IMG_0003.jpg")
     }
 
+    func testLibraryBatchPublishingFlushesInConfiguredChunks() async throws {
+        let items = (1...5).map { makePhotoItem(name: String(format: "IMG_%04d.jpg", $0)) }
+        let viewModel = LibraryViewModel(
+            mediaIndexer: IncrementalMockMediaIndexer(items: items, delayNanoseconds: 35_000_000),
+            sidecarService: SidecarService(),
+            uiPublishBatchSize: 3
+        )
+
+        viewModel.loadProject(rootURL: URL(fileURLWithPath: "/tmp/photos"))
+
+        await waitUntil {
+            viewModel.indexedCount >= 2
+        }
+
+        // First paint should flush immediately.
+        XCTAssertEqual(viewModel.displayedItems.count, 1)
+
+        await waitUntil {
+            viewModel.indexedCount >= 4
+        }
+
+        // After 3 additional indexed items, UI should flush again.
+        XCTAssertEqual(viewModel.displayedItems.count, 4)
+
+        await waitUntilIndexed(viewModel, expectedCount: 5)
+        XCTAssertEqual(viewModel.displayedItems.count, 5)
+    }
+
+    func testLibraryFolderGroupsSortByPathAndRespectGroupToggle() async throws {
+        let items = [
+            makePhotoItem(name: "IMG_0003.jpg", relativePath: "styles/posted/IMG_0003.jpg"),
+            makePhotoItem(name: "IMG_0001.jpg", relativePath: "styles/IMG_0001.jpg"),
+            makePhotoItem(name: "IMG_0002.jpg", relativePath: "IMG_0002.jpg"),
+            makePhotoItem(name: "IMG_0004.jpg", relativePath: "styles/posted/IMG_0004.jpg"),
+        ]
+        let viewModel = LibraryViewModel(
+            mediaIndexer: MockMediaIndexer(batches: [items]),
+            sidecarService: SidecarService()
+        )
+
+        viewModel.loadProject(rootURL: URL(fileURLWithPath: "/tmp/photos"))
+        await waitUntilIndexed(viewModel, expectedCount: 4)
+
+        XCTAssertTrue(viewModel.groupByFolder)
+        XCTAssertEqual(viewModel.displayedGroups.map(\.path), ["/", "styles", "styles/posted"])
+        XCTAssertEqual(viewModel.displayedGroups.first(where: { $0.path == "styles/posted" })?.items.map(\.filename), ["IMG_0003.jpg", "IMG_0004.jpg"])
+
+        viewModel.groupByFolder = false
+        XCTAssertEqual(viewModel.displayedItems.map(\.filename), ["IMG_0001.jpg", "IMG_0002.jpg", "IMG_0003.jpg", "IMG_0004.jpg"])
+    }
+
     private func waitUntilIndexed(_ viewModel: LibraryViewModel, expectedCount: Int) async {
         for _ in 0..<100 {
             if viewModel.indexedCount >= expectedCount, !viewModel.isIndexing {
@@ -168,15 +219,16 @@ final class LibraryAndNavigationTests: XCTestCase {
         XCTFail("Timed out waiting for condition")
     }
 
-    private func makePhotoItem(name: String) -> PhotoItem {
+    private func makePhotoItem(name: String, relativePath: String? = nil) -> PhotoItem {
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         let imageURL = directory.appendingPathComponent(name)
         let sidecarURL = directory.appendingPathComponent((name as NSString).deletingPathExtension + ".md")
+        let itemRelativePath = relativePath ?? name
         return PhotoItem(
             imageURL: imageURL,
             sidecarURL: sidecarURL,
             filename: name,
-            relativePath: name
+            relativePath: itemRelativePath
         )
     }
 }
@@ -204,6 +256,23 @@ private struct DelayedMockMediaIndexer: MediaIndexer {
                 continuation.yield(firstBatch)
                 try? await Task.sleep(nanoseconds: 120_000_000)
                 continuation.yield(secondBatch)
+                continuation.finish()
+            }
+        }
+    }
+}
+
+private struct IncrementalMockMediaIndexer: MediaIndexer {
+    let items: [PhotoItem]
+    let delayNanoseconds: UInt64
+
+    func indexPhotos(in rootURL: URL) -> AsyncThrowingStream<[PhotoItem], Error> {
+        AsyncThrowingStream { continuation in
+            Task.detached(priority: .utility) {
+                for item in items {
+                    continuation.yield([item])
+                    try? await Task.sleep(nanoseconds: delayNanoseconds)
+                }
                 continuation.finish()
             }
         }

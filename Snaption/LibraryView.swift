@@ -3,6 +3,7 @@ import SwiftUI
 
 struct LibraryView: View {
     @ObservedObject var appState: AppState
+    @State private var collapsedFolderPaths: Set<String> = []
 
     private let columns = [
         GridItem(.adaptive(minimum: 150, maximum: 220), spacing: 12),
@@ -16,31 +17,40 @@ struct LibraryView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            Text("Library")
-                .font(.title2)
-                .bold()
+            HStack(alignment: .firstTextBaseline, spacing: 10) {
+                Text("Library")
+                    .font(.title2)
+                    .bold()
+                Spacer()
 
-            if let rootURL = appState.libraryViewModel.rootURL {
-                Text("Project root: \(rootURL.path)")
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
-            } else {
-                Text("No project selected.")
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
-            }
+                if let rootURL = appState.libraryViewModel.rootURL {
+                    Text("Project root: \(rootURL.path)")
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                        .frame(maxWidth: 560, alignment: .trailing)
+                } else {
+                    Text("No project selected.")
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                }
 
-            HStack {
-                Button("Choose Different Folder") {
+                Button("Change") {
                     appState.openProjectPicker()
                 }
                 .buttonStyle(.bordered)
+            }
 
+            HStack {
                 Button("Sort: \(appState.libraryViewModel.sortDirection.label)") {
                     appState.libraryViewModel.toggleSortDirection()
                 }
                 .buttonStyle(.bordered)
                 .disabled(appState.libraryViewModel.allItems.isEmpty)
+
+                Toggle("Group by folder", isOn: $appState.libraryViewModel.groupByFolder)
+                    .toggleStyle(.switch)
 
                 if appState.libraryViewModel.isIndexing {
                     ProgressView()
@@ -85,17 +95,56 @@ struct LibraryView: View {
                 )
             } else {
                 ScrollView {
-                    LazyVGrid(columns: columns, spacing: 12) {
-                        ForEach(appState.libraryViewModel.displayedItems) { item in
-                            ThumbnailCell(
-                                item: item,
-                                thumbnailService: appState.libraryViewModel.thumbnailService
-                            ) { selectedItem in
-                                appState.openViewer(for: selectedItem)
+                    if appState.libraryViewModel.groupByFolder {
+                        LazyVStack(alignment: .leading, spacing: 12) {
+                            ForEach(appState.libraryViewModel.displayedGroups) { group in
+                                VStack(alignment: .leading, spacing: 8) {
+                                    Button {
+                                        toggleFolderCollapse(path: group.path)
+                                    } label: {
+                                        HStack(spacing: 8) {
+                                            Image(systemName: isFolderCollapsed(path: group.path) ? "chevron.right" : "chevron.down")
+                                                .font(.caption)
+                                            Text(group.path)
+                                                .font(.headline)
+                                            Spacer()
+                                            Text("\(group.items.count)")
+                                                .font(.caption)
+                                                .foregroundStyle(.secondary)
+                                        }
+                                        .contentShape(Rectangle())
+                                    }
+                                    .buttonStyle(.plain)
+
+                                    if !isFolderCollapsed(path: group.path) {
+                                        LazyVGrid(columns: columns, spacing: 12) {
+                                            ForEach(group.items) { item in
+                                                ThumbnailCell(
+                                                    item: item,
+                                                    thumbnailService: appState.libraryViewModel.thumbnailService
+                                                ) { selectedItem in
+                                                    appState.openViewer(for: selectedItem)
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
                             }
                         }
+                        .padding(.vertical, 8)
+                    } else {
+                        LazyVGrid(columns: columns, spacing: 12) {
+                            ForEach(appState.libraryViewModel.displayedItems) { item in
+                                ThumbnailCell(
+                                    item: item,
+                                    thumbnailService: appState.libraryViewModel.thumbnailService
+                                ) { selectedItem in
+                                    appState.openViewer(for: selectedItem)
+                                }
+                            }
+                        }
+                        .padding(.vertical, 8)
                     }
-                    .padding(.vertical, 8)
                 }
             }
 
@@ -108,6 +157,22 @@ struct LibraryView: View {
             isAscending: appState.libraryViewModel.sortDirection == .ascending
         )) {
             appState.libraryViewModel.prefetchThumbnails(for: appState.libraryViewModel.displayedItems)
+        }
+        .onChange(of: appState.libraryViewModel.displayedGroups.map(\.path)) { newPaths in
+            let valid = Set(newPaths)
+            collapsedFolderPaths = collapsedFolderPaths.intersection(valid)
+        }
+    }
+
+    private func isFolderCollapsed(path: String) -> Bool {
+        collapsedFolderPaths.contains(path)
+    }
+
+    private func toggleFolderCollapse(path: String) {
+        if collapsedFolderPaths.contains(path) {
+            collapsedFolderPaths.remove(path)
+        } else {
+            collapsedFolderPaths.insert(path)
         }
     }
 }
