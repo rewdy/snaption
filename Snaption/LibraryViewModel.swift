@@ -183,7 +183,12 @@ final class LibraryViewModel: ObservableObject {
     }
 
     func updateSearch(for photo: PhotoItem, notes: String, tags: [String], labels: [PointLabel]) {
-        searchEntriesByPhotoID[photo.id] = SearchEntry.from(notes: notes, tags: tags, labels: labels)
+        searchEntriesByPhotoID[photo.id] = SearchEntry.from(
+            filename: photo.filename,
+            notes: notes,
+            tags: tags,
+            labels: labels
+        )
     }
 
     func prefetchThumbnails(for items: [PhotoItem], limit: Int = 72) {
@@ -214,6 +219,7 @@ final class LibraryViewModel: ObservableObject {
                 do {
                     let sidecar = try sidecarService.readDocument(for: photo)
                     let entry = SearchEntry.from(
+                        filename: photo.filename,
                         notes: sidecar.notesMarkdown,
                         tags: sidecar.tags,
                         labels: sidecar.labels

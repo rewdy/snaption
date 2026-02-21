@@ -7,10 +7,10 @@ struct SearchEntry: Sendable {
         combinedLowercasedText.contains(query)
     }
 
-    nonisolated static func from(notes: String, tags: [String], labels: [PointLabel]) -> SearchEntry {
+    nonisolated static func from(filename: String, notes: String, tags: [String], labels: [PointLabel]) -> SearchEntry {
         let labelText = labels.map(\.text).joined(separator: " ")
         let tagText = tags.joined(separator: " ")
-        let text = "\(notes) \(tagText) \(labelText)".lowercased()
+        let text = "\(filename) \(notes) \(tagText) \(labelText)".lowercased()
         return SearchEntry(combinedLowercasedText: text)
     }
 }
