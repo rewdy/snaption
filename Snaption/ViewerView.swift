@@ -783,6 +783,7 @@ private final class AudioPlayerController: NSObject, ObservableObject, AVAudioPl
     let objectWillChange = PassthroughSubject<Void, Never>()
     private(set) var currentURL: URL?
     private(set) var isPlaying = false
+    private(set) var isPaused = false
     private(set) var progress: Double = 0
     private var player: AVAudioPlayer?
     private var progressTimer: Timer?
@@ -793,14 +794,16 @@ private final class AudioPlayerController: NSObject, ObservableObject, AVAudioPl
 
     func togglePlayback(for url: URL) {
         if isPlaying(url) {
-            stop()
+            pause()
+        } else if isPaused, currentURL == url {
+            resume()
         } else {
             play(url)
         }
     }
 
     func progress(for url: URL) -> Double {
-        guard isPlaying(url) else {
+        guard currentURL == url else {
             return 0
         }
         return progress
@@ -815,6 +818,7 @@ private final class AudioPlayerController: NSObject, ObservableObject, AVAudioPl
             player.play()
             currentURL = url
             isPlaying = true
+            isPaused = false
             progress = 0
             startProgressTimer()
             objectWillChange.send()
@@ -823,11 +827,34 @@ private final class AudioPlayerController: NSObject, ObservableObject, AVAudioPl
         }
     }
 
+    func pause() {
+        guard isPlaying else {
+            return
+        }
+        player?.pause()
+        isPlaying = false
+        isPaused = true
+        stopProgressTimer()
+        objectWillChange.send()
+    }
+
+    func resume() {
+        guard let player, isPaused else {
+            return
+        }
+        player.play()
+        isPlaying = true
+        isPaused = false
+        startProgressTimer()
+        objectWillChange.send()
+    }
+
     func stop() {
         player?.stop()
         player = nil
         currentURL = nil
         isPlaying = false
+        isPaused = false
         progress = 0
         stopProgressTimer()
         objectWillChange.send()
