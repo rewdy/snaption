@@ -24,78 +24,9 @@ struct LibraryView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            HStack(alignment: .firstTextBaseline, spacing: 10) {
-                Text("Library")
-                    .font(.title2)
-                    .bold()
-                Spacer()
-
-                if let rootURL = appState.libraryViewModel.rootURL {
-                    Text("Project folder: \(rootURL.path)")
-                        .font(.callout)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                        .truncationMode(.middle)
-                        .frame(maxWidth: 560, alignment: .trailing)
-                } else {
-                    Text("No project selected.")
-                        .font(.callout)
-                        .foregroundStyle(.secondary)
-                }
-
-                Button("Change") {
-                    appState.openProjectPicker()
-                }
-                .buttonStyle(.bordered)
-            }
-
-            HStack(spacing: 12) {
-                Picker("", selection: $appState.libraryViewModel.groupByFolder) {
-                    Text("Grouped").tag(true)
-                    Text("Flat").tag(false)
-                }
-                .pickerStyle(.segmented)
-                .labelsHidden()
-
-                Picker("Sort", selection: $appState.libraryViewModel.sortDirection) {
-                    Text("Filename \u{2191}").tag(FilenameSortDirection.filenameAscending)
-                    Text("Filename \u{2193}").tag(FilenameSortDirection.filenameDescending)
-                    Text("Date Modified \u{2191}").tag(FilenameSortDirection.modifiedAscending)
-                    Text("Date Modified \u{2193}").tag(FilenameSortDirection.modifiedDescending)
-                }
-                .pickerStyle(.menu)
-                .disabled(appState.libraryViewModel.allItems.isEmpty)
-
-                if appState.libraryViewModel.isIndexing {
-                    ProgressView()
-                        .controlSize(.small)
-                    Text("Indexing \(appState.libraryViewModel.indexedCount) photos...")
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
-                } else {
-                    Text("\(appState.libraryViewModel.allItems.count) photos indexed")
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
-                }
-            }
-
             #if DEBUG
             performancePanel
             #endif
-
-            HStack(spacing: 8) {
-                TextField("Search notes, tags, labels", text: $appState.libraryViewModel.searchQuery)
-                    .textFieldStyle(.roundedBorder)
-                if !appState.libraryViewModel.searchQuery.isEmpty {
-                    Button("Clear") {
-                        appState.libraryViewModel.searchQuery = ""
-                    }
-                    .buttonStyle(.bordered)
-                }
-                Text("\(appState.libraryViewModel.displayedItems.count) shown")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
 
             if let indexingErrorMessage = appState.libraryViewModel.indexingErrorMessage {
                 Text(indexingErrorMessage)

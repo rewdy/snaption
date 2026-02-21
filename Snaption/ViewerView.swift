@@ -11,73 +11,9 @@ struct ViewerView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            HStack(spacing: 8) {
-                Button("Back to Library") {
-                    appState.navigateToLibrary()
-                }
-                .buttonStyle(.bordered)
-                .keyboardShortcut("b", modifiers: [.command])
-
-                Button("Previous") {
-                    appState.goToPreviousPhoto()
-                }
-                .buttonStyle(.bordered)
-                .disabled(!appState.canGoToPreviousPhoto)
-                .keyboardShortcut(.leftArrow, modifiers: [])
-
-                Button("Next") {
-                    appState.goToNextPhoto()
-                }
-                .buttonStyle(.bordered)
-                .disabled(!appState.canGoToNextPhoto)
-                .keyboardShortcut(.rightArrow, modifiers: [])
-
-                Spacer()
-
-                Toggle(
-                    "Presentation Mode",
-                    isOn: Binding(
-                        get: { appState.isPresentationModeEnabled },
-                        set: { appState.setPresentationModeEnabled($0) }
-                    )
-                )
-                .toggleStyle(.switch)
-                .disabled(!appState.hasExternalDisplay)
-                .help(
-                    appState.hasExternalDisplay
-                        ? "Show the selected photo on the second display."
-                        : "Connect a second display to enable presentation mode."
-                )
-            }
-
-            if let selectedPhoto = appState.selectedPhoto {
+            if appState.selectedPhoto != nil {
                 HStack(alignment: .top, spacing: 16) {
                     VStack(alignment: .leading, spacing: 8) {
-                        HStack(spacing: 8) {
-                            Text(selectedPhoto.filename)
-                                .font(.title2)
-                                .bold()
-
-                            Spacer()
-
-                            HStack(spacing: 6) {
-                                Circle()
-                                    .fill(saveStateColor)
-                                    .frame(width: 8, height: 8)
-                                Text(appState.notesSaveState.label)
-                                    .font(.footnote)
-                                    .foregroundStyle(.secondary)
-                            }
-                            .padding(.horizontal, 10)
-                            .padding(.vertical, 6)
-                            .background(Color.secondary.opacity(0.12))
-                            .clipShape(Capsule())
-                        }
-
-                        Text(selectedPhoto.relativePath)
-                            .font(.callout)
-                            .foregroundStyle(.secondary)
-
                         PhotoCanvasView(
                             image: image,
                             labels: appState.labels,
@@ -94,16 +30,12 @@ struct ViewerView: View {
 
                     VStack(alignment: .leading, spacing: 8) {
                         HStack {
-                            Text("Annotations")
+                            Text("Notes")
                                 .font(.headline)
                             Spacer()
                             Text("\(appState.labels.count) labels")
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
-                            Button(isPlacingLabel ? "Cancel Label" : "Add Label") {
-                                isPlacingLabel.toggle()
-                            }
-                            .buttonStyle(.borderedProminent)
                         }
 
                         if isPlacingLabel {
@@ -111,9 +43,6 @@ struct ViewerView: View {
                                 .font(.caption)
                                 .foregroundStyle(.blue)
                         }
-
-                        Text("Notes")
-                            .font(.headline)
 
                         TextEditor(text: Binding(
                             get: { appState.notesText },
@@ -206,6 +135,40 @@ struct ViewerView: View {
                 )
             }
         }
+        .toolbar {
+            ToolbarItemGroup(placement: .primaryAction) {
+                ControlGroup {
+                    Button {
+                        appState.goToPreviousPhoto()
+                    } label: {
+                        Image(systemName: "chevron.left")
+                    }
+                    .help("Back")
+                    .disabled(!appState.canGoToPreviousPhoto)
+                    .keyboardShortcut(.leftArrow, modifiers: [])
+
+                    Button {
+                        appState.goToNextPhoto()
+                    } label: {
+                        Image(systemName: "chevron.right")
+                    }
+                    .help("Next")
+                    .disabled(!appState.canGoToNextPhoto)
+                    .keyboardShortcut(.rightArrow, modifiers: [])
+                }
+                
+                Button {
+                    isPlacingLabel.toggle()
+                } label: {
+                    Label(
+                        isPlacingLabel ? "Cancel Label" : "Add Label",
+                        systemImage: isPlacingLabel ? "xmark" : "plus"
+                    )
+                }
+                .labelStyle(.titleAndIcon)
+                .disabled(appState.selectedPhoto == nil)
+            }
+        }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .focusable()
         .onMoveCommand(perform: handleMoveCommand)
@@ -254,19 +217,6 @@ struct ViewerView: View {
             }
             .padding()
             .frame(width: 380)
-        }
-    }
-
-    private var saveStateColor: Color {
-        switch appState.notesSaveState {
-        case .clean:
-            return .secondary
-        case .dirty:
-            return .orange
-        case .saving:
-            return .secondary
-        case .error:
-            return .red
         }
     }
 
