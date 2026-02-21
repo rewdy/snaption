@@ -10,7 +10,7 @@ struct ViewerView: View {
     @State private var pendingLabel: PendingLabelDraft?
     @State private var editRequest: LabelEditRequest?
     @State private var faceObservations: [FaceObservation] = []
-    @State private var recordings: [URL] = []
+    @State private var recordings: [RecordingItem] = []
     @StateObject private var audioPlayer = AudioPlayerController()
     private let faceDetectionService = FaceDetectionService()
 
@@ -130,24 +130,30 @@ struct ViewerView: View {
                         } else {
                             ScrollView {
                                 VStack(alignment: .leading, spacing: 6) {
-                                    ForEach(recordings, id: \.self) { url in
+                                    ForEach(recordings) { recording in
                                         HStack(spacing: 8) {
                                             Button {
-                                                audioPlayer.togglePlayback(for: url)
+                                                audioPlayer.togglePlayback(for: recording.url)
                                             } label: {
                                                 ZStack {
                                                     AudioProgressRing(
-                                                        progress: audioPlayer.progress(for: url),
-                                                        isActive: audioPlayer.isPlaying(url)
+                                                        progress: audioPlayer.progress(for: recording.url),
+                                                        isActive: audioPlayer.isPlaying(recording.url)
                                                     )
-                                                    Image(systemName: audioPlayer.isPlaying(url) ? "pause.fill" : "play.fill")
+                                                    Image(systemName: audioPlayer.isPlaying(recording.url) ? "pause.fill" : "play.fill")
                                                 }
                                             }
                                             .buttonStyle(.bordered)
                                             .controlSize(.small)
                                             .clipShape(Circle())
 
-                                            Text(url.lastPathComponent)
+                                            Text(recording.modifiedAt, style: .date)
+                                                .font(.caption2)
+                                                .foregroundStyle(.secondary)
+                                            Text(recording.modifiedAt, style: .time)
+                                                .font(.caption2)
+                                                .foregroundStyle(.secondary)
+                                            Text(recording.url.lastPathComponent)
                                                 .lineLimit(1)
                                             Spacer()
                                         }
@@ -380,7 +386,7 @@ struct ViewerView: View {
         return nil
     }
 
-    private func loadRecordings(for photo: PhotoItem) -> [URL] {
+    private func loadRecordings(for photo: PhotoItem) -> [RecordingItem] {
         let directory = photo.imageURL.deletingLastPathComponent()
         let baseName = photo.imageURL.deletingPathExtension().lastPathComponent
         guard let files = try? FileManager.default.contentsOfDirectory(
@@ -394,7 +400,14 @@ struct ViewerView: View {
         return files
             .filter { $0.pathExtension.lowercased() == "m4a" }
             .filter { $0.lastPathComponent.hasPrefix("\(baseName)-") }
-            .sorted { $0.lastPathComponent.localizedStandardCompare($1.lastPathComponent) == .orderedAscending }
+            .compactMap { url in
+                let values = try? url.resourceValues(forKeys: [.contentModificationDateKey])
+                guard let modifiedAt = values?.contentModificationDate else {
+                    return nil
+                }
+                return RecordingItem(url: url, modifiedAt: modifiedAt)
+            }
+            .sorted { $0.modifiedAt > $1.modifiedAt }
     }
 }
 
@@ -777,6 +790,18 @@ private struct FlowLayout<Item: Hashable, Content: View>: View {
                 }
             }
         }
+    }
+}
+
+private struct RecordingItem: Identifiable {
+    let id: String
+    let url: URL
+    let modifiedAt: Date
+
+    init(url: URL, modifiedAt: Date) {
+        self.url = url
+        self.modifiedAt = modifiedAt
+        self.id = url.path
     }
 }
 
