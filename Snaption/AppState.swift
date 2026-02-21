@@ -46,7 +46,7 @@ final class AppState: ObservableObject {
     private var faceFeatureKey: String?
     private var audioRecordingTask: Task<Void, Never>?
     private var audioBlinkTask: Task<Void, Never>?
-    private var pendingAudioURL: URL?
+    private var pendingAudioRecording: PendingAudioRecording?
     private var loadedSidecarDocument: SidecarDocument?
     private var autosaveTask: Task<Void, Never>?
     private var libraryViewModelChangeCancellable: AnyCancellable?
@@ -209,7 +209,10 @@ final class AppState: ObservableObject {
 
         blinkAudioRecordingIndicator()
         let url = audioRecordingURL(for: selectedPhoto)
-        pendingAudioURL = url
+        pendingAudioRecording = PendingAudioRecording(
+            url: url,
+            photo: selectedPhoto
+        )
         audioRecordingTask?.cancel()
         audioRecordingTask = Task { [audioRecordingService] in
             do {
@@ -227,10 +230,10 @@ final class AppState: ObservableObject {
         audioRecordingTask?.cancel()
         audioRecordingTask = nil
         audioRecordingService.stopRecording()
-        if let url = pendingAudioURL {
-            pendingAudioURL = nil
+        if let pending = pendingAudioRecording {
+            pendingAudioRecording = nil
             Task { [weak self] in
-                await self?.processRecording(url: url)
+                await self?.processRecording(pending)
             }
         }
     }
@@ -259,11 +262,11 @@ final class AppState: ObservableObject {
         return photo.imageURL.deletingLastPathComponent().appendingPathComponent(filename)
     }
 
-    private func processRecording(url: URL) async {
-        let finalURL = await audioRecordingService.trimSilence(at: url)
+    private func processRecording(_ pending: PendingAudioRecording) async {
+        let finalURL = await audioRecordingService.trimSilence(at: pending.url)
 
         if shouldAppendRecordingText {
-            await transcribeAndAppend(url: finalURL)
+            await transcribeAndAppend(url: finalURL, for: pending.photo)
         }
 
         if !shouldSaveRecordingFiles {
@@ -271,7 +274,7 @@ final class AppState: ObservableObject {
         }
     }
 
-    private func transcribeAndAppend(url: URL) async {
+    private func transcribeAndAppend(url: URL, for photo: PhotoItem) async {
         let auth = await audioTranscriptionService.requestAuthorization()
         guard auth == .authorized else {
             await MainActor.run {
@@ -285,12 +288,12 @@ final class AppState: ObservableObject {
         do {
             let text = try await audioTranscriptionService.transcribeAudio(at: url)
             await MainActor.run { [weak self] in
-                self?.appendRecordingText(text, date: Date())
+                self?.appendRecordingText(text, date: Date(), for: photo)
             }
             if shouldAppendRecordingSummary {
                 let summary = try await audioSummaryService.summarize(text)
                 await MainActor.run { [weak self] in
-                    self?.appendRecordingSummary(summary, date: Date())
+                    self?.appendRecordingSummary(summary, date: Date(), for: photo)
                 }
             }
         } catch {
@@ -301,7 +304,7 @@ final class AppState: ObservableObject {
 
     }
 
-    private func appendRecordingText(_ text: String, date: Date) {
+    private func appendRecordingText(_ text: String, date: Date, for photo: PhotoItem) {
         guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             return
         }
@@ -309,12 +312,10 @@ final class AppState: ObservableObject {
         formatter.formatOptions = [.withInternetDateTime]
         let timestamp = formatter.string(from: date)
         let section = "\n\n## Audio - \(timestamp)\n\n\(text)\n"
-        notesText.append(contentsOf: section)
-        notesSaveState = .dirty
-        scheduleAutosave()
+        appendSection(section, for: photo)
     }
 
-    private func appendRecordingSummary(_ text: String, date: Date) {
+    private func appendRecordingSummary(_ text: String, date: Date, for photo: PhotoItem) {
         guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             return
         }
@@ -322,9 +323,30 @@ final class AppState: ObservableObject {
         formatter.formatOptions = [.withInternetDateTime]
         let timestamp = formatter.string(from: date)
         let section = "\n\n## Audio Summary - \(timestamp)\n\n\(text)\n"
-        notesText.append(contentsOf: section)
-        notesSaveState = .dirty
-        scheduleAutosave()
+        appendSection(section, for: photo)
+    }
+
+    private func appendSection(_ section: String, for photo: PhotoItem) {
+        if selectedPhotoID == photo.id {
+            notesText.append(contentsOf: section)
+            notesSaveState = .dirty
+            scheduleAutosave()
+            return
+        }
+
+        do {
+            var document = try sidecarService.readDocument(for: photo)
+            document.notesMarkdown.append(contentsOf: section)
+            try sidecarService.writeDocument(document, for: photo)
+            libraryViewModel.updateSearch(
+                for: photo,
+                notes: document.notesMarkdown,
+                tags: document.tags,
+                labels: document.labels
+            )
+        } catch {
+            statusMessage = "Failed to append audio notes."
+        }
     }
 
     private func trashAudioFile(at url: URL) {
@@ -723,4 +745,9 @@ final class AppState: ObservableObject {
         }
         return faceFeatureStore.indexFileURL(forKey: faceFeatureKey)
     }
+}
+
+private struct PendingAudioRecording {
+    let url: URL
+    let photo: PhotoItem
 }
