@@ -401,6 +401,8 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = Snaption;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.photography";
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Snaption records audio notes for the photos you are viewing.";
+				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "Snaption transcribes recorded audio notes into text.";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -434,6 +436,8 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = Snaption;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.photography";
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Snaption records audio notes for the photos you are viewing.";
+				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "Snaption transcribes recorded audio notes into text.";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",

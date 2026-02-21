@@ -22,7 +22,19 @@ actor FaceIndexStore {
         guard let data = try? Data(contentsOf: storeURL) else {
             return [:]
         }
-        return (try? JSONDecoder().decode([String: FaceIndexEntry].self, from: data)) ?? [:]
+        if let decoded = try? JSONDecoder().decode([String: FaceIndexEntry].self, from: data) {
+            return decoded
+        }
+        if let legacy = try? JSONDecoder().decode([String: LegacyFaceIndexEntry].self, from: data) {
+            return legacy.mapValues { legacyEntry in
+                FaceIndexEntry(
+                    photoPath: legacyEntry.photoPath,
+                    photoModifiedAt: legacyEntry.photoModifiedAt,
+                    faces: legacyEntry.faces.map { FaceIndexFace(bounds: $0, featurePrint: nil) }
+                )
+            }
+        }
+        return [:]
     }
 
     func save(_ entries: [String: FaceIndexEntry]) {
@@ -31,4 +43,10 @@ actor FaceIndexStore {
         }
         try? data.write(to: storeURL, options: [.atomic])
     }
+}
+
+private struct LegacyFaceIndexEntry: Codable {
+    let photoPath: String
+    let photoModifiedAt: Date
+    let faces: [CGRect]
 }

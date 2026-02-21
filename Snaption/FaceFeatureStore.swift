@@ -64,13 +64,39 @@ struct FaceFeatureStore {
             }
         }
 
+        let legacyKey = hashedKey(forFallbackPath: rootURL.path)
+        let legacyPreferenceKey = preferenceKey(forKey: legacyKey)
+        let hasLegacyPref = userDefaults.object(forKey: legacyPreferenceKey) != nil
+        let legacyCacheDir = cacheDirectory(forKey: legacyKey)
+        let hasLegacyCache = FileManager.default.fileExists(atPath: legacyCacheDir.path)
+
         if let bookmark = try? rootURL.bookmarkData(options: [.withSecurityScope]) {
+            let newKey = hashedKey(for: bookmark)
             bookmarks.append(bookmark)
             userDefaults.set(bookmarks, forKey: Self.bookmarkListKey)
-            return hashedKey(for: bookmark)
+
+            if hasLegacyPref || hasLegacyCache {
+                let newPreferenceKey = preferenceKey(forKey: newKey)
+                if let legacyValue = userDefaults.object(forKey: legacyPreferenceKey) {
+                    userDefaults.set(legacyValue, forKey: newPreferenceKey)
+                    userDefaults.removeObject(forKey: legacyPreferenceKey)
+                }
+
+                let newCacheDir = cacheDirectory(forKey: newKey)
+                if hasLegacyCache, !FileManager.default.fileExists(atPath: newCacheDir.path) {
+                    try? FileManager.default.createDirectory(at: newCacheDir.deletingLastPathComponent(), withIntermediateDirectories: true)
+                    try? FileManager.default.moveItem(at: legacyCacheDir, to: newCacheDir)
+                }
+            }
+
+            return newKey
         }
 
-        return hashedKey(forFallbackPath: rootURL.path)
+        if hasLegacyPref || hasLegacyCache {
+            return legacyKey
+        }
+
+        return legacyKey
     }
 
     private func hashedKey(for data: Data) -> String {
