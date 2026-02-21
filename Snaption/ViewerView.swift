@@ -28,6 +28,7 @@ struct ViewerView: View {
                                 image: image,
                                 labels: appState.labels,
                                 pendingLabel: $pendingLabel,
+                                isLabelsHidden: appState.areLabelsHidden,
                                 editRequest: $editRequest,
                                 onPlaceLabel: { normalizedPoint, anchorPoint in
                                     pendingLabel = PendingLabelDraft(
@@ -66,7 +67,6 @@ struct ViewerView: View {
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                         }
-
                         TextEditor(text: Binding(
                             get: { appState.notesText },
                             set: { appState.updateNotesDraft($0) }
@@ -83,6 +83,55 @@ struct ViewerView: View {
                             Text(notesStatusMessage)
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
+                        }
+
+                        Divider()
+
+                        HStack {
+                            Text("Labels")
+                                .font(.headline)
+                            Spacer()
+                            Toggle(isOn: $appState.areLabelsHidden) {
+                                Text("Hide")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                            .toggleStyle(.switch)
+                        }
+
+                        if appState.labels.isEmpty {
+                            Text("No labels yet.")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        } else {
+                            ScrollView {
+                                VStack(alignment: .leading, spacing: 6) {
+                                    ForEach(appState.labels) { label in
+                                        HStack(spacing: 8) {
+                                            Text(label.text)
+                                                .lineLimit(1)
+                                            Spacer()
+                                            Text("(\(label.x, specifier: "%.3f"), \(label.y, specifier: "%.3f"))")
+                                                .font(.caption2)
+                                                .foregroundStyle(.secondary)
+                                            if !appState.areLabelsHidden {
+                                                Button("Edit") {
+                                                    editRequest = LabelEditRequest(labelID: label.id)
+                                                }
+                                                .buttonStyle(.bordered)
+                                                .controlSize(.small)
+                                                Button("Remove") {
+                                                    appState.removeLabel(id: label.id)
+                                                }
+                                                .buttonStyle(.bordered)
+                                                .controlSize(.small)
+                                            }
+                                        }
+                                        .font(.caption)
+                                    }
+                                }
+                            }
+                            .frame(maxHeight: 170)
                         }
 
                         Divider()
@@ -114,44 +163,6 @@ struct ViewerView: View {
                             .padding(.vertical, 4)
                             .background(Color.secondary.opacity(0.15))
                             .clipShape(Capsule())
-                        }
-
-                        Divider()
-
-                        Text("Labels")
-                            .font(.headline)
-
-                        if appState.labels.isEmpty {
-                            Text("No labels yet.")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        } else {
-                            ScrollView {
-                                VStack(alignment: .leading, spacing: 6) {
-                                    ForEach(appState.labels) { label in
-                                        HStack(spacing: 8) {
-                                            Text(label.text)
-                                                .lineLimit(1)
-                                            Spacer()
-                                            Text("(\(label.x, specifier: "%.3f"), \(label.y, specifier: "%.3f"))")
-                                                .font(.caption2)
-                                                .foregroundStyle(.secondary)
-                                            Button("Edit") {
-                                                editRequest = LabelEditRequest(labelID: label.id)
-                                            }
-                                            .buttonStyle(.bordered)
-                                            .controlSize(.small)
-                                            Button("Remove") {
-                                                appState.removeLabel(id: label.id)
-                                            }
-                                            .buttonStyle(.bordered)
-                                            .controlSize(.small)
-                                        }
-                                        .font(.caption)
-                                    }
-                                }
-                            }
-                            .frame(maxHeight: 170)
                         }
                     }
                     .frame(width: 360)
@@ -208,6 +219,11 @@ struct ViewerView: View {
             }
 
             image = NSImage(contentsOf: selectedPhoto.imageURL)
+        }
+        .onChange(of: appState.areLabelsHidden) { isHidden in
+            if isHidden {
+                pendingLabel = nil
+            }
         }
     }
 
@@ -315,6 +331,7 @@ private struct PhotoCanvasView: View {
     let image: NSImage?
     let labels: [PointLabel]
     @Binding var pendingLabel: PendingLabelDraft?
+    let isLabelsHidden: Bool
     @Binding var editRequest: LabelEditRequest?
     let onPlaceLabel: (CGPoint, CGPoint) -> Void
     let onSelectLabel: (PointLabel, CGPoint) -> Void
@@ -346,7 +363,7 @@ private struct PhotoCanvasView: View {
                     .gesture(
                         DragGesture(minimumDistance: 0)
                             .onEnded { value in
-                                guard pendingLabel == nil else {
+                                guard pendingLabel == nil, !isLabelsHidden else {
                                     return
                                 }
                                 guard drawRect.contains(value.location), drawRect.width > 0, drawRect.height > 0 else {
@@ -359,50 +376,52 @@ private struct PhotoCanvasView: View {
                             }
                     )
 
-                ForEach(labels) { label in
-                    let point = CGPoint(
-                        x: drawRect.minX + label.x * drawRect.width,
-                        y: drawRect.minY + label.y * drawRect.height
-                    )
+                if !isLabelsHidden {
+                    ForEach(labels) { label in
+                        let point = CGPoint(
+                            x: drawRect.minX + label.x * drawRect.width,
+                            y: drawRect.minY + label.y * drawRect.height
+                        )
 
-                    let dotSize: CGFloat = 10
-                    let labelOffset = CGSize(width: 14, height: -14)
-                    let hitSize: CGFloat = 16
-                    let isEditing = pendingLabel?.labelID == label.id
-                    let dotColor: Color = isEditing ? .green : .red
+                        let dotSize: CGFloat = 10
+                        let labelOffset = CGSize(width: 14, height: -14)
+                        let hitSize: CGFloat = 16
+                        let isEditing = pendingLabel?.labelID == label.id
+                        let dotColor: Color = isEditing ? .green : .red
 
-                    Circle()
-                        .fill(dotColor)
-                        .frame(width: dotSize, height: dotSize)
+                        Circle()
+                            .fill(dotColor)
+                            .frame(width: dotSize, height: dotSize)
+                            .position(x: point.x, y: point.y)
+
+                        Button(action: {
+                            onSelectLabel(label, point)
+                        }) {
+                            Color.clear
+                                .frame(width: hitSize, height: hitSize)
+                        }
+                        .buttonStyle(.plain)
                         .position(x: point.x, y: point.y)
 
-                    Button(action: {
-                        onSelectLabel(label, point)
-                    }) {
-                        Color.clear
-                            .frame(width: hitSize, height: hitSize)
+                        Button {
+                            onSelectLabel(label, point)
+                        } label: {
+                            Text(label.text)
+                                .font(.caption2)
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 4)
+                                .background(Color.black.opacity(0.65))
+                                .foregroundStyle(.white)
+                                .clipShape(Capsule())
+                                .padding(6)
+                                .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                        .position(
+                            x: point.x + labelOffset.width,
+                            y: point.y + labelOffset.height
+                        )
                     }
-                    .buttonStyle(.plain)
-                    .position(x: point.x, y: point.y)
-
-                    Button {
-                        onSelectLabel(label, point)
-                    } label: {
-                        Text(label.text)
-                            .font(.caption2)
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 4)
-                            .background(Color.black.opacity(0.65))
-                            .foregroundStyle(.white)
-                            .clipShape(Capsule())
-                            .padding(6)
-                            .contentShape(Rectangle())
-                    }
-                    .buttonStyle(.plain)
-                    .position(
-                        x: point.x + labelOffset.width,
-                        y: point.y + labelOffset.height
-                    )
                 }
 
                 if let pendingLabel, pendingLabel.isNew {
@@ -443,7 +462,7 @@ private struct PhotoCanvasView: View {
             .clipShape(RoundedRectangle(cornerRadius: 10))
             .contentShape(Rectangle())
             .onChange(of: editRequest?.id) { _ in
-                guard pendingLabel == nil, let request = editRequest else {
+                guard pendingLabel == nil, !isLabelsHidden, let request = editRequest else {
                     return
                 }
                 guard let label = labels.first(where: { $0.id == request.labelID }) else {

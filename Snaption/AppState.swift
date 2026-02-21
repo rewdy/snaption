@@ -16,6 +16,7 @@ final class AppState: ObservableObject {
     @Published var notesText: String = ""
     @Published var tags: [String] = []
     @Published var labels: [PointLabel] = []
+    @Published var areLabelsHidden = false
     @Published private(set) var notesSaveState: NotesSaveState = .clean
     @Published private(set) var notesStatusMessage: String?
     @Published private(set) var hasExternalDisplay = false
@@ -412,4 +413,3 @@ final class AppState: ObservableObject {
         }
     }
 }
-
