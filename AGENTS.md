@@ -65,6 +65,8 @@ Use this file at the start of each new coding session in this repo.
 ## 6) Current Status Summary
 
 - Milestones 0-5 are functionally implemented.
+- Face features (opt-in, indexing, gallery, suggestions) are implemented.
+- Audio recording/transcription/summaries are implemented.
 - Milestone 6 (hardening/performance/QA) is partially done and is the active focus area.
 - Most immediate work is product polish + performance validation + packaging prep.
 

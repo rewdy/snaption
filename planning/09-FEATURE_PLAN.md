@@ -2,6 +2,12 @@
 
 Updated: 2026-02-21
 
+## Status (2026-02-21)
+
+- Face features (F1–F4): Implemented and shipped.
+- Audio features (A1–A3): Implemented and shipped.
+- Review tasks: Informal review complete; formal separate reviewer pass still recommended.
+
 This plan breaks the new features into agent‑sized tasks with clear ownership, review gates, and reporting expectations.
 
 ---
@@ -30,6 +36,7 @@ This plan breaks the new features into agent‑sized tasks with clear ownership,
 - Opt‑in prompted once per project root.
 - Toggle works + prompts on disable.
 - Cache directory created and purged correctly.
+**Status:** Complete
 
 ### Task F1R — Review (Code + UX)
 **Owner:** Agent B  
@@ -37,6 +44,7 @@ This plan breaks the new features into agent‑sized tasks with clear ownership,
 - No prompts in unexpected flows.
 - Toggle state persists per root.
 - Purge deletes only face cache, not sidecars.
+**Status:** Informal review complete; formal pass recommended.
 
 ---
 
@@ -50,12 +58,14 @@ This plan breaks the new features into agent‑sized tasks with clear ownership,
 **Acceptance:**
 - Face boxes appear within 1–2s after image load.
 - Hidden when labels are hidden or face feature disabled.
+**Status:** Complete
 
 ### Task F2R — Review
 **Owner:** Agent B  
 **Checklist:**
 - No blocking UI.
 - Overlay respects zoom/scale correctly.
+**Status:** Informal review complete; formal pass recommended.
 
 ---
 
@@ -70,12 +80,14 @@ This plan breaks the new features into agent‑sized tasks with clear ownership,
 **Acceptance:**
 - Doesn’t block UI.
 - Cache populated with detected faces.
+**Status:** Complete
 
 ### Task F3R — Review
 **Owner:** Agent B  
 **Checklist:**
 - CPU usage bounded (throttled or batched).
 - Reindex handles modified files.
+**Status:** Informal review complete; formal pass recommended.
 
 ---
 
@@ -87,12 +99,14 @@ This plan breaks the new features into agent‑sized tasks with clear ownership,
 **Acceptance:**
 - Suggestion accuracy + confirm flow.
 - Faces view shows detected faces.
+**Status:** Complete
 
 ### Task F4R — Review
 **Owner:** Agent B  
 **Checklist:**
 - False positives minimized.
 - UI consistent with library/viewer.
+**Status:** Informal review complete; formal pass recommended.
 
 ---
 
@@ -111,12 +125,14 @@ This plan breaks the new features into agent‑sized tasks with clear ownership,
 **Acceptance:**
 - Button states correct.
 - Files saved with proper names.
+**Status:** Complete
 
 ### Task A1R — Review
 **Owner:** Agent D  
 **Checklist:**
 - No UI regressions.
 - Recording stops on navigate away.
+**Status:** Informal review complete; formal pass recommended.
 
 ---
 
@@ -131,12 +147,14 @@ This plan breaks the new features into agent‑sized tasks with clear ownership,
 **Acceptance:**
 - Notes append correctly.
 - Audio file handled per settings.
+**Status:** Complete
 
 ### Task A2R — Review
 **Owner:** Agent D  
 **Checklist:**
 - No data loss in notes.
 - Trash behavior verified.
+**Status:** Informal review complete; formal pass recommended.
 
 ---
 
@@ -149,11 +167,13 @@ This plan breaks the new features into agent‑sized tasks with clear ownership,
 - `AudioSummaryService` (stub if unavailable).
 **Acceptance:**
 - Summaries appended only when available.
+**Status:** Complete
 
 ### Task A3R — Review
 **Owner:** Agent D  
 **Checklist:**
 - Summaries do not overwrite or misplace notes.
+**Status:** Informal review complete; formal pass recommended.
 
 ---
 

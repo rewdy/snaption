@@ -6,6 +6,8 @@ This plan converts requirements and technical design into implementable mileston
 
 - Overall: MVP core feature set is implemented; hardening/performance/release-readiness remains active.
 - Current app identity: `Snaption` (renamed from earlier `PhotoInfo` references in docs/code history).
+- Face features (opt-in, indexing, gallery, suggestions) implemented.
+- Audio recording/transcription/summaries implemented.
 
 Milestone status:
 - Milestone 0: Complete
