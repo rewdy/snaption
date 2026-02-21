@@ -172,5 +172,5 @@ General notes in markdown...
 - Detailed malformed YAML behavior (strict merge/preserve policy).
 - UI specifics for point label editing/removal affordance.
 - Whether to include `.jpeg` explicitly (recommended yes).
-- Minimum macOS target version.
+- Minimum macOS target version. **Resolved: 14+.**
 - Project structure and implementation phases.

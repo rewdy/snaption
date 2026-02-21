@@ -6,7 +6,7 @@ This document turns product requirements into an implementable design for a nati
 
 - Language: Swift 5.10+
 - UI: SwiftUI (macOS native)
-- Min macOS target: 14+ (recommended for modern SwiftUI behavior/perf)
+- Min macOS target: 14+ (chosen to keep SwiftUI behavior/perf modern)
 - Concurrency: Swift Concurrency (`async/await`, `Task`, actors)
 - Persistence model:
   - Source of truth: Markdown sidecar files on disk
@@ -301,4 +301,4 @@ For each `PhotoItem`, maintain searchable lowercase fields:
   - Option B: custom minimal parser for constrained schema.
 - Disk thumbnail cache needed for MVP or not.
 - Exact `NSCache` sizing defaults and prefetch window sizes.
-- Minimum macOS target confirmation (13 vs 14).
+- Minimum macOS target confirmation (13 vs 14). **Resolved: 14+.**
