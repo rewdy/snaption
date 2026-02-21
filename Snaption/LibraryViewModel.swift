@@ -1,5 +1,6 @@
 import Combine
 import Foundation
+import AppKit
 
 struct LibraryFolderGroup: Identifiable, Equatable {
     let path: String
@@ -28,6 +29,7 @@ final class LibraryViewModel: ObservableObject {
     private var indexingTask: Task<Void, Never>?
     private var searchIndexTask: Task<Void, Never>?
     private var prefetchTask: Task<Void, Never>?
+    private var faceIndexTask: Task<Void, Never>?
     private var searchEntriesByPhotoID: [String: SearchEntry] = [:]
     private let clock = ContinuousClock()
     private var indexingStartTime: ContinuousClock.Instant?
@@ -122,6 +124,7 @@ final class LibraryViewModel: ObservableObject {
 
         indexingTask?.cancel()
         searchIndexTask?.cancel()
+        faceIndexTask?.cancel()
         prefetchTask?.cancel()
         indexingTask = Task { [weak self] in
             guard let self else {
@@ -234,6 +237,71 @@ final class LibraryViewModel: ObservableObject {
                 searchEntriesByPhotoID[photoID] = entry
             }
         }
+    }
+
+    func startFaceIndexing(rootURL: URL, storeURL: URL, isEnabled: Bool) {
+        guard isEnabled else {
+            return
+        }
+        faceIndexTask?.cancel()
+        faceIndexTask = Task.detached(priority: .utility) { [weak self] in
+            guard let self else {
+                return
+            }
+
+            while true {
+                let indexing = await MainActor.run { self.isIndexing }
+                if !indexing {
+                    break
+                }
+                try? await Task.sleep(nanoseconds: 300_000_000)
+            }
+
+            let items = await MainActor.run { self.allItems }
+            guard !items.isEmpty else {
+                return
+            }
+
+            let store = FaceIndexStore(storeURL: storeURL)
+            var entries = await store.load()
+            let detector = FaceDetectionService()
+
+            for item in items {
+                if Task.isCancelled {
+                    return
+                }
+
+                let modified = (try? item.imageURL.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate) ?? Date.distantPast
+                if let existing = entries[item.id], existing.photoModifiedAt == modified {
+                    continue
+                }
+
+                guard let image = NSImage(contentsOf: item.imageURL) else {
+                    continue
+                }
+
+                do {
+                    let result = try await detector.detectFaces(in: image)
+                    let entry = FaceIndexEntry(
+                        photoPath: item.imageURL.path,
+                        photoModifiedAt: modified,
+                        faces: result.bounds
+                    )
+                    entries[item.id] = entry
+                } catch {
+                    continue
+                }
+
+                try? await Task.sleep(nanoseconds: 20_000_000)
+            }
+
+            await store.save(entries)
+        }
+    }
+
+    func stopFaceIndexing() {
+        faceIndexTask?.cancel()
+        faceIndexTask = nil
     }
 
     private func recordFirstPaintIfNeeded() {

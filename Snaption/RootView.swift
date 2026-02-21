@@ -14,7 +14,7 @@ struct RootView: View {
                         .searchable(
                             text: $appState.libraryViewModel.searchQuery,
                             placement: .toolbar,
-                            prompt: "Search notes, tags, labels"
+                            prompt: "Search filenames, notes, tags, labels"
                         )
                 case .viewer:
                     ViewerView(appState: appState)
@@ -90,6 +90,24 @@ struct RootView: View {
                         }
                         .help("Sort options")
                         .disabled(appState.libraryViewModel.allItems.isEmpty)
+
+                        Menu {
+                            if appState.faceFeaturesEnabled {
+                                Button("Disable Face Features") {
+                                    appState.requestDisableFaceFeatures()
+                                }
+                                Button("Face Gallery") {
+                                    appState.isFacesGalleryPresented = true
+                                }
+                            } else {
+                                Button("Enable Face Features") {
+                                    appState.enableFaceFeatures()
+                                }
+                            }
+                        } label: {
+                            Image(systemName: "ellipsis")
+                        }
+                        .help("More options")
                     }
                 } else if appState.route == .viewer {
                     ToolbarItemGroup(placement: .navigation) {
@@ -120,10 +138,105 @@ struct RootView: View {
                         )
                         .toggleStyle(.automatic)
                         .disabled(!appState.hasExternalDisplay)
+
+                        Button {
+                            appState.toggleAudioRecording()
+                        } label: {
+                            Image(systemName: appState.isAudioRecordingEnabled ? "mic.fill" : "mic")
+                                .foregroundStyle(audioRecordingColor)
+                        }
+                        .help(appState.isAudioRecordingEnabled ? "Stop recording" : "Start recording")
+                        .popover(isPresented: Binding(
+                            get: { appState.isAudioRecordingEnabled },
+                            set: { _ in }
+                        )) {
+                            VStack(alignment: .leading, spacing: 12) {
+                                Text("Recording Options")
+                                    .font(.headline)
+                                Toggle("Save original recording files", isOn: $appState.shouldSaveRecordingFiles)
+                                Toggle(
+                                    "Update note with recording text",
+                                    isOn: Binding(
+                                        get: { appState.shouldAppendRecordingText },
+                                        set: { appState.setAppendRecordingText($0) }
+                                    )
+                                )
+                                .disabled(!appState.isAudioTranscriptionAvailable)
+                                Toggle(
+                                    "Save recording summaries to notes",
+                                    isOn: Binding(
+                                        get: { appState.shouldAppendRecordingSummary },
+                                        set: { appState.setAppendRecordingSummary($0) }
+                                    )
+                                )
+                                .disabled(!appState.isAudioSummaryAvailable || !appState.shouldAppendRecordingText)
+                            }
+                            .padding()
+                            .frame(width: 280)
+                        }
+
+                        Menu {
+                            if appState.faceFeaturesEnabled {
+                                Button("Disable Face Features") {
+                                    appState.requestDisableFaceFeatures()
+                                }
+                                Button("Face Gallery") {
+                                    appState.isFacesGalleryPresented = true
+                                }
+                            } else {
+                                Button("Enable Face Features") {
+                                    appState.enableFaceFeatures()
+                                }
+                            }
+                        } label: {
+                            Image(systemName: "ellipsis")
+                        }
+                        .help("More options")
                     }
 
                 }
             }
+        }
+        .sheet(isPresented: $appState.isFacesGalleryPresented) {
+            if let rootURL = appState.libraryViewModel.rootURL {
+                FacesGalleryView(storeURL: FaceFeatureStore().indexFileURL(for: rootURL))
+            } else {
+                ContentUnavailableView(
+                    "No project open",
+                    systemImage: "folder",
+                    description: Text("Open a project to view faces.")
+                )
+                .frame(minWidth: 520, minHeight: 420)
+            }
+        }
+        .confirmationDialog(
+            "Enable Face Features for this folder?",
+            isPresented: $appState.isFaceOptInPromptPresented,
+            titleVisibility: .visible
+        ) {
+            Button("Enable Face Features") {
+                appState.enableFaceFeatures()
+            }
+            Button("Not Now", role: .cancel) {
+                appState.declineFaceFeatures()
+            }
+        } message: {
+            Text("Face detection runs locally and can be disabled at any time.")
+        }
+        .confirmationDialog(
+            "Disable Face Features?",
+            isPresented: $appState.isFaceDisableDialogPresented,
+            titleVisibility: .visible
+        ) {
+            Button("Disable and Keep Data") {
+                appState.disableFaceFeatures(purgeData: false)
+            }
+            Button("Disable and Purge Data", role: .destructive) {
+                appState.disableFaceFeatures(purgeData: true)
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("Keeping data allows faster re-enable later.")
         }
     }
 
@@ -177,6 +290,13 @@ struct RootView: View {
         }
 
         return ""
+    }
+
+    private var audioRecordingColor: Color {
+        if appState.isAudioRecordingBlinking {
+            return .red.opacity(0.2)
+        }
+        return appState.isAudioRecordingEnabled ? .red : .primary
     }
 
     @ViewBuilder

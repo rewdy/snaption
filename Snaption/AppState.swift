@@ -1,5 +1,6 @@
 import Combine
 import Foundation
+import Speech
 
 @MainActor
 final class AppState: ObservableObject {
@@ -21,11 +22,30 @@ final class AppState: ObservableObject {
     @Published private(set) var notesStatusMessage: String?
     @Published private(set) var hasExternalDisplay = false
     @Published private(set) var isPresentationModeEnabled = false
+    @Published var faceFeaturesEnabled = false
+    @Published var isFaceOptInPromptPresented = false
+    @Published var isFaceDisableDialogPresented = false
+    @Published var isFacesGalleryPresented = false
+    @Published var isAudioRecordingEnabled = false
+    @Published var isAudioRecordingBlinking = false
+    @Published var shouldSaveRecordingFiles = true
+    @Published var shouldAppendRecordingText = false
+    @Published var shouldAppendRecordingSummary = false
+    @Published var isAudioTranscriptionAvailable = false
+    @Published var isAudioSummaryAvailable = false
 
     private let projectService: ProjectService
     private let sidecarService: SidecarService
     private let displayMonitor: DisplayMonitoring
     private let presentationWindowController: PresentationWindowControlling
+    private let faceFeatureStore = FaceFeatureStore()
+    private let userDefaults = UserDefaults.standard
+    private let audioRecordingService = AudioRecordingService()
+    private let audioTranscriptionService = AudioTranscriptionService()
+    private let audioSummaryService = AudioSummaryService()
+    private var audioRecordingTask: Task<Void, Never>?
+    private var audioBlinkTask: Task<Void, Never>?
+    private var pendingAudioURL: URL?
     private var loadedSidecarDocument: SidecarDocument?
     private var autosaveTask: Task<Void, Never>?
     private var libraryViewModelChangeCancellable: AnyCancellable?
@@ -106,10 +126,12 @@ final class AppState: ObservableObject {
 
     func openViewer(for item: PhotoItem) {
         flushPendingNotesIfNeeded()
+        stopAudioRecordingIfNeeded()
         selectedPhotoID = item.id
         loadNotesForSelectedPhoto()
         route = .viewer
         syncPresentationOutput()
+        startAudioRecordingIfNeeded()
     }
 
     func goToPreviousPhoto() {
@@ -118,9 +140,11 @@ final class AppState: ObservableObject {
         }
 
         flushPendingNotesIfNeeded()
+        stopAudioRecordingIfNeeded()
         selectedPhotoID = libraryViewModel.displayedItems[currentPhotoIndex - 1].id
         loadNotesForSelectedPhoto()
         syncPresentationOutput()
+        startAudioRecordingIfNeeded()
     }
 
     func goToNextPhoto() {
@@ -134,21 +158,176 @@ final class AppState: ObservableObject {
         }
 
         flushPendingNotesIfNeeded()
+        stopAudioRecordingIfNeeded()
         selectedPhotoID = libraryViewModel.displayedItems[nextIndex].id
         loadNotesForSelectedPhoto()
         syncPresentationOutput()
+        startAudioRecordingIfNeeded()
+    }
+
+    func toggleAudioRecording() {
+        if isAudioRecordingEnabled {
+            isAudioRecordingEnabled = false
+            stopAudioRecordingIfNeeded()
+            isAudioTranscriptionAvailable = false
+            isAudioSummaryAvailable = false
+        } else {
+            isAudioTranscriptionAvailable = audioTranscriptionService.isAvailable()
+            isAudioSummaryAvailable = audioSummaryService.isAvailable()
+            shouldAppendRecordingText = isAudioTranscriptionAvailable
+            shouldAppendRecordingSummary = isAudioTranscriptionAvailable && isAudioSummaryAvailable
+            isAudioRecordingEnabled = true
+            startAudioRecordingIfNeeded()
+        }
+    }
+
+    private func startAudioRecordingIfNeeded() {
+        guard isAudioRecordingEnabled, let selectedPhoto else {
+            return
+        }
+
+        blinkAudioRecordingIndicator()
+        let url = audioRecordingURL(for: selectedPhoto)
+        pendingAudioURL = url
+        audioRecordingTask?.cancel()
+        audioRecordingTask = Task { [audioRecordingService] in
+            do {
+                try audioRecordingService.startRecording(to: url)
+            } catch {
+                await MainActor.run { [weak self] in
+                    self?.statusMessage = "Failed to start recording."
+                    self?.isAudioRecordingEnabled = false
+                }
+            }
+        }
+    }
+
+    private func stopAudioRecordingIfNeeded() {
+        audioRecordingTask?.cancel()
+        audioRecordingTask = nil
+        audioRecordingService.stopRecording()
+        if let url = pendingAudioURL {
+            pendingAudioURL = nil
+            if shouldAppendRecordingText {
+                Task { [weak self] in
+                    await self?.transcribeAndAppend(url: url)
+                }
+            } else if !shouldSaveRecordingFiles {
+                trashAudioFile(at: url)
+            }
+        }
+    }
+
+    private func blinkAudioRecordingIndicator() {
+        audioBlinkTask?.cancel()
+        isAudioRecordingBlinking = true
+        audioBlinkTask = Task { [weak self] in
+            guard let self else { return }
+            for _ in 0..<3 {
+                await MainActor.run { self.isAudioRecordingBlinking.toggle() }
+                try? await Task.sleep(nanoseconds: 200_000_000)
+                await MainActor.run { self.isAudioRecordingBlinking.toggle() }
+                try? await Task.sleep(nanoseconds: 200_000_000)
+            }
+            await MainActor.run { self.isAudioRecordingBlinking = false }
+        }
+    }
+
+    private func audioRecordingURL(for photo: PhotoItem) -> URL {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime]
+        let timestamp = formatter.string(from: Date())
+        let baseName = photo.imageURL.deletingPathExtension().lastPathComponent
+        let filename = "\(baseName)-\(timestamp).m4a"
+        return photo.imageURL.deletingLastPathComponent().appendingPathComponent(filename)
+    }
+
+    private func transcribeAndAppend(url: URL) async {
+        let auth = await audioTranscriptionService.requestAuthorization()
+        guard auth == .authorized else {
+            await MainActor.run {
+                statusMessage = "Speech recognition not authorized."
+                shouldAppendRecordingText = false
+                shouldAppendRecordingSummary = false
+            }
+            return
+        }
+
+        do {
+            let text = try await audioTranscriptionService.transcribeAudio(at: url)
+            await MainActor.run { [weak self] in
+                self?.appendRecordingText(text, date: Date())
+            }
+            if shouldAppendRecordingSummary {
+                let summary = try await audioSummaryService.summarize(text)
+                await MainActor.run { [weak self] in
+                    self?.appendRecordingSummary(summary, date: Date())
+                }
+            }
+        } catch {
+            await MainActor.run {
+                statusMessage = "Failed to transcribe audio."
+            }
+        }
+
+        if !shouldSaveRecordingFiles {
+            trashAudioFile(at: url)
+        }
+    }
+
+    private func appendRecordingText(_ text: String, date: Date) {
+        guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            return
+        }
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime]
+        let timestamp = formatter.string(from: date)
+        let section = "\n\n## Audio - \(timestamp)\n\n\(text)\n"
+        notesText.append(contentsOf: section)
+        notesSaveState = .dirty
+        scheduleAutosave()
+    }
+
+    private func appendRecordingSummary(_ text: String, date: Date) {
+        guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            return
+        }
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime]
+        let timestamp = formatter.string(from: date)
+        let section = "\n\n## Audio Summary - \(timestamp)\n\n\(text)\n"
+        notesText.append(contentsOf: section)
+        notesSaveState = .dirty
+        scheduleAutosave()
+    }
+
+    private func trashAudioFile(at url: URL) {
+        _ = try? FileManager.default.trashItem(at: url, resultingItemURL: nil)
     }
 
     func navigateToLibrary() {
         flushPendingNotesIfNeeded()
+        stopAudioRecordingIfNeeded()
         route = .library
         syncPresentationOutput()
     }
 
     func navigateToStart() {
         flushPendingNotesIfNeeded()
+        stopAudioRecordingIfNeeded()
         route = .start
         syncPresentationOutput()
+    }
+
+    func setAppendRecordingText(_ isOn: Bool) {
+        shouldAppendRecordingText = isOn
+        if !isOn {
+            shouldAppendRecordingSummary = false
+        }
+    }
+
+    func setAppendRecordingSummary(_ isOn: Bool) {
+        shouldAppendRecordingSummary = isOn
     }
 
     func setPresentationModeEnabled(_ isEnabled: Bool) {
@@ -359,13 +538,83 @@ final class AppState: ObservableObject {
     }
 
     private func openProject(at url: URL) {
+        stopAudioRecordingIfNeeded()
         projectRootURL = url
         lastProjectURL = url
         statusMessage = nil
         selectedPhotoID = nil
         libraryViewModel.loadProject(rootURL: url)
+        updateFaceFeatureState(for: url)
         route = .library
         syncPresentationOutput()
+
+        if faceFeaturesEnabled {
+            startFaceIndexingIfNeeded()
+        }
+    }
+
+    func enableFaceFeatures() {
+        guard let rootURL = projectRootURL else {
+            return
+        }
+        faceFeaturesEnabled = true
+        userDefaults.set(true, forKey: faceFeatureStore.preferenceKey(for: rootURL))
+        do {
+            try faceFeatureStore.ensureCacheDirectory(for: rootURL)
+        } catch {
+            statusMessage = "Failed to create face feature cache."
+        }
+        startFaceIndexingIfNeeded()
+    }
+
+    func declineFaceFeatures() {
+        guard let rootURL = projectRootURL else {
+            return
+        }
+        faceFeaturesEnabled = false
+        userDefaults.set(false, forKey: faceFeatureStore.preferenceKey(for: rootURL))
+        libraryViewModel.stopFaceIndexing()
+    }
+
+    func requestDisableFaceFeatures() {
+        isFaceDisableDialogPresented = true
+    }
+
+    func disableFaceFeatures(purgeData: Bool) {
+        guard let rootURL = projectRootURL else {
+            return
+        }
+        faceFeaturesEnabled = false
+        userDefaults.set(false, forKey: faceFeatureStore.preferenceKey(for: rootURL))
+        libraryViewModel.stopFaceIndexing()
+        if purgeData {
+            do {
+                try faceFeatureStore.purgeCache(for: rootURL)
+            } catch {
+                statusMessage = "Failed to purge face feature cache."
+            }
+        }
+    }
+
+    private func startFaceIndexingIfNeeded() {
+        guard let rootURL = projectRootURL else {
+            return
+        }
+        let storeURL = faceFeatureStore.indexFileURL(for: rootURL)
+        libraryViewModel.startFaceIndexing(rootURL: rootURL, storeURL: storeURL, isEnabled: faceFeaturesEnabled)
+    }
+
+    private func updateFaceFeatureState(for url: URL) {
+        let key = faceFeatureStore.preferenceKey(for: url)
+        if let stored = userDefaults.object(forKey: key) as? Bool {
+            faceFeaturesEnabled = stored
+            if stored {
+                try? faceFeatureStore.ensureCacheDirectory(for: url)
+            }
+        } else {
+            faceFeaturesEnabled = false
+            isFaceOptInPromptPresented = true
+        }
     }
 
     private func enablePresentationMode() {

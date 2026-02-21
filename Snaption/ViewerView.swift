@@ -7,6 +7,8 @@ struct ViewerView: View {
     @State private var newTagText = ""
     @State private var pendingLabel: PendingLabelDraft?
     @State private var editRequest: LabelEditRequest?
+    @State private var faceBoxes: [CGRect] = []
+    private let faceDetectionService = FaceDetectionService()
 
     private var sidecarURL: URL? {
         appState.selectedPhoto?.sidecarURL
@@ -30,6 +32,8 @@ struct ViewerView: View {
                                 pendingLabel: $pendingLabel,
                                 isLabelsHidden: appState.areLabelsHidden,
                                 editRequest: $editRequest,
+                                faceBoxes: faceBoxes,
+                                isFaceFeaturesEnabled: appState.faceFeaturesEnabled,
                                 onPlaceLabel: { normalizedPoint, anchorPoint in
                                     pendingLabel = PendingLabelDraft(
                                         id: UUID(),
@@ -215,14 +219,36 @@ struct ViewerView: View {
                 image = nil
                 newTagText = ""
                 pendingLabel = nil
+                faceBoxes = []
                 return
             }
 
             image = NSImage(contentsOf: selectedPhoto.imageURL)
         }
-        .onChange(of: appState.areLabelsHidden) { isHidden in
+        .task(id: FaceDetectionKey(
+            photoID: appState.selectedPhotoID,
+            isEnabled: appState.faceFeaturesEnabled,
+            areLabelsHidden: appState.areLabelsHidden
+        )) {
+            guard appState.faceFeaturesEnabled, !appState.areLabelsHidden else {
+                faceBoxes = []
+                return
+            }
+            guard let image else {
+                faceBoxes = []
+                return
+            }
+            do {
+                let result = try await faceDetectionService.detectFaces(in: image)
+                faceBoxes = result.bounds
+            } catch {
+                faceBoxes = []
+            }
+        }
+        .onChange(of: appState.areLabelsHidden) { _, isHidden in
             if isHidden {
                 pendingLabel = nil
+                faceBoxes = []
             }
         }
     }
@@ -333,6 +359,8 @@ private struct PhotoCanvasView: View {
     @Binding var pendingLabel: PendingLabelDraft?
     let isLabelsHidden: Bool
     @Binding var editRequest: LabelEditRequest?
+    let faceBoxes: [CGRect]
+    let isFaceFeaturesEnabled: Bool
     let onPlaceLabel: (CGPoint, CGPoint) -> Void
     let onSelectLabel: (PointLabel, CGPoint) -> Void
     let onSaveLabel: (PendingLabelDraft, String) -> Void
@@ -357,6 +385,16 @@ private struct PhotoCanvasView: View {
                 } else {
                     ProgressView("Loading image...")
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
+                }
+
+                if isFaceFeaturesEnabled && !isLabelsHidden {
+                    ForEach(Array(faceBoxes.enumerated()), id: \.offset) { _, box in
+                        let rect = faceRect(from: box, in: drawRect)
+                        RoundedRectangle(cornerRadius: 4)
+                            .stroke(Color.yellow.opacity(0.9), lineWidth: 2)
+                            .frame(width: rect.width, height: rect.height)
+                            .position(x: rect.midX, y: rect.midY)
+                    }
                 }
 
                 Color.clear
@@ -479,7 +517,7 @@ private struct PhotoCanvasView: View {
                     labelSizes.merge(sizes) { _, new in new }
                 }
             }
-            .onChange(of: editRequest?.id) { _ in
+            .onChange(of: editRequest?.id) { _, _ in
                 guard pendingLabel == nil, !isLabelsHidden, let request = editRequest else {
                     return
                 }
@@ -568,6 +606,14 @@ private struct PhotoCanvasView: View {
         let clampedY = min(max(rawY, halfHeight), canvasSize.height - halfHeight)
         return CGPoint(x: clampedX, y: clampedY)
     }
+
+    private func faceRect(from normalizedRect: CGRect, in drawRect: CGRect) -> CGRect {
+        let x = drawRect.minX + normalizedRect.minX * drawRect.width
+        let y = drawRect.minY + (1 - normalizedRect.maxY) * drawRect.height
+        let width = normalizedRect.width * drawRect.width
+        let height = normalizedRect.height * drawRect.height
+        return CGRect(x: x, y: y, width: width, height: height)
+    }
 }
 
 private struct PendingLabelDraft: Identifiable {
@@ -593,6 +639,12 @@ private struct LabelSizePreferenceKey: PreferenceKey {
     static func reduce(value: inout [String: CGSize], nextValue: () -> [String: CGSize]) {
         value.merge(nextValue()) { _, new in new }
     }
+}
+
+private struct FaceDetectionKey: Equatable {
+    let photoID: String?
+    let isEnabled: Bool
+    let areLabelsHidden: Bool
 }
 
 private struct FlowLayout<Item: Hashable, Content: View>: View {
