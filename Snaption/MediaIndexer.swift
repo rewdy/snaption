@@ -12,7 +12,7 @@ struct DefaultMediaIndexer: MediaIndexer, Sendable {
         AsyncThrowingStream { continuation in
             Task.detached(priority: .userInitiated) {
                 do {
-                    let keys: Set<URLResourceKey> = [.isDirectoryKey, .isRegularFileKey]
+                    let keys: Set<URLResourceKey> = [.isDirectoryKey, .isRegularFileKey, .contentModificationDateKey]
                     guard let enumerator = FileManager.default.enumerator(
                         at: rootURL,
                         includingPropertiesForKeys: Array(keys),
@@ -53,7 +53,8 @@ struct DefaultMediaIndexer: MediaIndexer, Sendable {
                                 imageURL: fileURL,
                                 sidecarURL: sidecarURL,
                                 filename: fileURL.lastPathComponent,
-                                relativePath: relativePath
+                                relativePath: relativePath,
+                                modifiedAt: values.contentModificationDate
                             )
                         )
 

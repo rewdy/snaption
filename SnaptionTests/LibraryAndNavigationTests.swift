@@ -54,6 +54,28 @@ final class LibraryAndNavigationTests: XCTestCase {
         XCTAssertEqual(viewModel.displayedItems.map { $0.filename }, ["IMG_0100.jpg", "IMG_0010.jpg", "IMG_0002.jpg"])
     }
 
+    func testLibrarySortAscendingAndDescendingByDateModified() async throws {
+        let now = Date()
+        let items = [
+            makePhotoItem(name: "IMG_0001.jpg", modifiedAt: now.addingTimeInterval(120)),
+            makePhotoItem(name: "IMG_0002.jpg", modifiedAt: now.addingTimeInterval(10)),
+            makePhotoItem(name: "IMG_0003.jpg", modifiedAt: now.addingTimeInterval(70)),
+        ]
+        let viewModel = LibraryViewModel(
+            mediaIndexer: MockMediaIndexer(batches: [items]),
+            sidecarService: SidecarService()
+        )
+
+        viewModel.loadProject(rootURL: URL(fileURLWithPath: "/tmp/photos"))
+        await waitUntilIndexed(viewModel, expectedCount: 3)
+
+        viewModel.sortDirection = .modifiedAscending
+        XCTAssertEqual(viewModel.displayedItems.map { $0.filename }, ["IMG_0002.jpg", "IMG_0003.jpg", "IMG_0001.jpg"])
+
+        viewModel.sortDirection = .modifiedDescending
+        XCTAssertEqual(viewModel.displayedItems.map { $0.filename }, ["IMG_0001.jpg", "IMG_0003.jpg", "IMG_0002.jpg"])
+    }
+
     func testLibrarySearchMatchesNotesTagsAndLabels() async throws {
         let one = makePhotoItem(name: "IMG_0001.jpg")
         let two = makePhotoItem(name: "IMG_0002.jpg")
@@ -219,7 +241,7 @@ final class LibraryAndNavigationTests: XCTestCase {
         XCTFail("Timed out waiting for condition")
     }
 
-    private func makePhotoItem(name: String, relativePath: String? = nil) -> PhotoItem {
+    private func makePhotoItem(name: String, relativePath: String? = nil, modifiedAt: Date? = nil) -> PhotoItem {
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         let imageURL = directory.appendingPathComponent(name)
         let sidecarURL = directory.appendingPathComponent((name as NSString).deletingPathExtension + ".md")
@@ -228,7 +250,8 @@ final class LibraryAndNavigationTests: XCTestCase {
             imageURL: imageURL,
             sidecarURL: sidecarURL,
             filename: name,
-            relativePath: itemRelativePath
+            relativePath: itemRelativePath,
+            modifiedAt: modifiedAt
         )
     }
 }

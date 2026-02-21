@@ -82,7 +82,23 @@ final class ThumbnailService: @unchecked Sendable {
             return nil
         }
 
-        let bitmapRep = NSBitmapImageRep(cgImage: cgImage)
+        // Center-crop to square so grid thumbnails always fill their tile bounds.
+        let outputImage = centerCroppedSquare(from: cgImage) ?? cgImage
+        let bitmapRep = NSBitmapImageRep(cgImage: outputImage)
         return bitmapRep.representation(using: .png, properties: [:])
+    }
+
+    nonisolated private static func centerCroppedSquare(from image: CGImage) -> CGImage? {
+        let width = image.width
+        let height = image.height
+        let side = min(width, height)
+        guard side > 0 else {
+            return nil
+        }
+
+        let x = (width - side) / 2
+        let y = (height - side) / 2
+        let cropRect = CGRect(x: x, y: y, width: side, height: side)
+        return image.cropping(to: cropRect)
     }
 }

@@ -17,7 +17,7 @@ final class LibraryViewModel: ObservableObject {
     @Published private(set) var indexingErrorMessage: String?
     @Published private(set) var performance = LibraryPerformanceSnapshot.empty
     @Published var searchQuery: String = ""
-    @Published var sortDirection: FilenameSortDirection = .ascending
+    @Published var sortDirection: FilenameSortDirection = .filenameAscending
     @Published var groupByFolder = true
 
     let thumbnailService = ThumbnailService()
@@ -91,10 +91,18 @@ final class LibraryViewModel: ObservableObject {
     }
 
     private func sortedItems(_ filtered: [PhotoItem]) -> [PhotoItem] {
-        if sortDirection == .ascending {
-            return filtered
+        switch sortDirection {
+        case .filenameAscending:
+            return filtered.sorted(by: Self.filenameOrder)
+        case .filenameDescending:
+            return filtered.sorted { lhs, rhs in
+                Self.filenameOrder(lhs: rhs, rhs: lhs)
+            }
+        case .modifiedAscending:
+            return filtered.sorted(by: Self.modifiedOrderAscending)
+        case .modifiedDescending:
+            return filtered.sorted(by: Self.modifiedOrderDescending)
         }
-        return Array(filtered.reversed())
     }
 
     func loadProject(rootURL: URL) {
@@ -264,6 +272,20 @@ final class LibraryViewModel: ObservableObject {
             return lhs.relativePath.localizedStandardCompare(rhs.relativePath) == .orderedAscending
         }
         return lhs.filename.localizedStandardCompare(rhs.filename) == .orderedAscending
+    }
+
+    private static func modifiedOrderAscending(lhs: PhotoItem, rhs: PhotoItem) -> Bool {
+        if lhs.modifiedAt != rhs.modifiedAt {
+            return (lhs.modifiedAt ?? .distantPast) < (rhs.modifiedAt ?? .distantPast)
+        }
+        return filenameOrder(lhs: lhs, rhs: rhs)
+    }
+
+    private static func modifiedOrderDescending(lhs: PhotoItem, rhs: PhotoItem) -> Bool {
+        if lhs.modifiedAt != rhs.modifiedAt {
+            return (lhs.modifiedAt ?? .distantPast) > (rhs.modifiedAt ?? .distantPast)
+        }
+        return filenameOrder(lhs: lhs, rhs: rhs)
     }
 
     private static func parentFolderPath(for item: PhotoItem) -> String {

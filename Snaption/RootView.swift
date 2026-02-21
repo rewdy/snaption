@@ -17,17 +17,6 @@ struct RootView: View {
             }
             .padding()
             .navigationTitle("Snaption")
-            .toolbar {
-                ToolbarItemGroup(placement: .navigation) {
-                    Button {
-                        appState.navigateToStart()
-                    } label: {
-                        Image(systemName: "chevron.left")
-                    }
-                    .help("Back")
-                    .disabled(appState.route == .start)
-                }
-            }
         }
     }
 }

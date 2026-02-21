@@ -9,10 +9,17 @@ struct LibraryView: View {
         GridItem(.adaptive(minimum: 150, maximum: 220), spacing: 12),
     ]
 
+    private var folderHeaderBackground: Color {
+        Color(nsColor: NSColor(name: nil) { _ in
+            let base = NSColor.windowBackgroundColor
+            return base.blended(withFraction: 0.12, of: .labelColor) ?? base
+        })
+    }
+
     private struct PrefetchKey: Equatable {
         let count: Int
         let query: String
-        let isAscending: Bool
+        let sortDirection: FilenameSortDirection
     }
 
     var body: some View {
@@ -24,7 +31,7 @@ struct LibraryView: View {
                 Spacer()
 
                 if let rootURL = appState.libraryViewModel.rootURL {
-                    Text("Project root: \(rootURL.path)")
+                    Text("Project folder: \(rootURL.path)")
                         .font(.callout)
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
@@ -42,15 +49,22 @@ struct LibraryView: View {
                 .buttonStyle(.bordered)
             }
 
-            HStack {
-                Button("Sort: \(appState.libraryViewModel.sortDirection.label)") {
-                    appState.libraryViewModel.toggleSortDirection()
+            HStack(spacing: 12) {
+                Picker("", selection: $appState.libraryViewModel.groupByFolder) {
+                    Text("Grouped").tag(true)
+                    Text("Flat").tag(false)
                 }
-                .buttonStyle(.bordered)
-                .disabled(appState.libraryViewModel.allItems.isEmpty)
+                .pickerStyle(.segmented)
+                .labelsHidden()
 
-                Toggle("Group by folder", isOn: $appState.libraryViewModel.groupByFolder)
-                    .toggleStyle(.switch)
+                Picker("Sort", selection: $appState.libraryViewModel.sortDirection) {
+                    Text("Filename \u{2191}").tag(FilenameSortDirection.filenameAscending)
+                    Text("Filename \u{2193}").tag(FilenameSortDirection.filenameDescending)
+                    Text("Date Modified \u{2191}").tag(FilenameSortDirection.modifiedAscending)
+                    Text("Date Modified \u{2193}").tag(FilenameSortDirection.modifiedDescending)
+                }
+                .pickerStyle(.menu)
+                .disabled(appState.libraryViewModel.allItems.isEmpty)
 
                 if appState.libraryViewModel.isIndexing {
                     ProgressView()
@@ -65,7 +79,9 @@ struct LibraryView: View {
                 }
             }
 
+            #if DEBUG
             performancePanel
+            #endif
 
             HStack(spacing: 8) {
                 TextField("Search notes, tags, labels", text: $appState.libraryViewModel.searchQuery)
@@ -96,26 +112,9 @@ struct LibraryView: View {
             } else {
                 ScrollView {
                     if appState.libraryViewModel.groupByFolder {
-                        LazyVStack(alignment: .leading, spacing: 12) {
+                        LazyVStack(alignment: .leading, spacing: 12, pinnedViews: [.sectionHeaders]) {
                             ForEach(appState.libraryViewModel.displayedGroups) { group in
-                                VStack(alignment: .leading, spacing: 8) {
-                                    Button {
-                                        toggleFolderCollapse(path: group.path)
-                                    } label: {
-                                        HStack(spacing: 8) {
-                                            Image(systemName: isFolderCollapsed(path: group.path) ? "chevron.right" : "chevron.down")
-                                                .font(.caption)
-                                            Text(group.path)
-                                                .font(.headline)
-                                            Spacer()
-                                            Text("\(group.items.count)")
-                                                .font(.caption)
-                                                .foregroundStyle(.secondary)
-                                        }
-                                        .contentShape(Rectangle())
-                                    }
-                                    .buttonStyle(.plain)
-
+                                Section {
                                     if !isFolderCollapsed(path: group.path) {
                                         LazyVGrid(columns: columns, spacing: 12) {
                                             ForEach(group.items) { item in
@@ -128,9 +127,34 @@ struct LibraryView: View {
                                             }
                                         }
                                     }
+                                } header: {
+                                    Button {
+                                        toggleFolderCollapse(path: group.path)
+                                    } label: {
+                                        HStack(spacing: 8) {
+                                            Image(systemName: isFolderCollapsed(path: group.path) ? "chevron.right" : "chevron.down")
+                                                .font(.subheadline)
+                                            Text(group.path)
+                                                .font(.body.weight(.semibold))
+                                            Spacer()
+                                            Text("\(group.items.count)")
+                                                .font(.subheadline)
+                                                .foregroundStyle(.secondary)
+                                        }
+                                        .padding(.horizontal, 10)
+                                        .padding(.vertical, 8)
+                                        .frame(maxWidth: .infinity, minHeight: 38, alignment: .leading)
+                                        .background(folderHeaderBackground.opacity(0.8))
+                                        .clipShape(RoundedRectangle(cornerRadius: 4))
+                                        .contentShape(Rectangle())
+                                    }
+                                    .buttonStyle(.plain)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    .zIndex(10)
                                 }
                             }
                         }
+                        .frame(maxWidth: .infinity, alignment: .leading)
                         .padding(.vertical, 8)
                     } else {
                         LazyVGrid(columns: columns, spacing: 12) {
@@ -154,11 +178,11 @@ struct LibraryView: View {
         .task(id: PrefetchKey(
             count: appState.libraryViewModel.displayedItems.count,
             query: appState.libraryViewModel.searchQuery,
-            isAscending: appState.libraryViewModel.sortDirection == .ascending
+            sortDirection: appState.libraryViewModel.sortDirection
         )) {
             appState.libraryViewModel.prefetchThumbnails(for: appState.libraryViewModel.displayedItems)
         }
-        .onChange(of: appState.libraryViewModel.displayedGroups.map(\.path)) { newPaths in
+        .onChange(of: appState.libraryViewModel.displayedGroups.map(\.path), initial: false) { _, newPaths in
             let valid = Set(newPaths)
             collapsedFolderPaths = collapsedFolderPaths.intersection(valid)
         }
@@ -236,27 +260,33 @@ private struct ThumbnailCell: View {
     let onOpen: (PhotoItem) -> Void
 
     @State private var image: NSImage?
+    private let thumbnailHeight: CGFloat = 132
 
     var body: some View {
         Button {
             onOpen(item)
         } label: {
             VStack(alignment: .leading, spacing: 8) {
-                ZStack {
-                    RoundedRectangle(cornerRadius: 8)
-                        .fill(Color.secondary.opacity(0.12))
+                GeometryReader { proxy in
+                    ZStack {
+                        RoundedRectangle(cornerRadius: 8)
+                            .fill(Color.secondary.opacity(0.12))
 
-                    if let image {
-                        Image(nsImage: image)
-                            .resizable()
-                            .scaledToFill()
-                    } else {
-                        ProgressView()
-                            .controlSize(.small)
+                        if let image {
+                            Image(nsImage: image)
+                                .resizable()
+                                .scaledToFill()
+                                .frame(width: proxy.size.width, height: proxy.size.height)
+                                .clipped()
+                        } else {
+                            ProgressView()
+                                .controlSize(.small)
+                        }
                     }
+                    .frame(width: proxy.size.width, height: proxy.size.height)
+                    .clipShape(RoundedRectangle(cornerRadius: 8))
                 }
-                .frame(height: 132)
-                .clipShape(RoundedRectangle(cornerRadius: 8))
+                .frame(height: thumbnailHeight)
 
                 Text(item.filename)
                     .font(.caption)

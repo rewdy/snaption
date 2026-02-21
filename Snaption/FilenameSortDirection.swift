@@ -1,17 +1,19 @@
 enum FilenameSortDirection {
-    case ascending
-    case descending
+    case filenameAscending
+    case filenameDescending
+    case modifiedAscending
+    case modifiedDescending
 
     mutating func toggle() {
-        self = self == .ascending ? .descending : .ascending
-    }
-
-    var label: String {
         switch self {
-        case .ascending:
-            return "A->Z"
-        case .descending:
-            return "Z->A"
+        case .filenameAscending:
+            self = .filenameDescending
+        case .filenameDescending:
+            self = .filenameAscending
+        case .modifiedAscending:
+            self = .modifiedDescending
+        case .modifiedDescending:
+            self = .modifiedAscending
         }
     }
 }
