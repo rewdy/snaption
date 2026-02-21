@@ -9,6 +9,17 @@ struct ViewerView: View {
     @State private var pendingLabelPoint: CGPoint?
     @State private var newLabelText = ""
 
+    private var sidecarURL: URL? {
+        appState.selectedPhoto?.sidecarURL
+    }
+
+    private var sidecarExists: Bool {
+        guard let sidecarURL else {
+            return false
+        }
+        return FileManager.default.fileExists(atPath: sidecarURL.path)
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             if appState.selectedPhoto != nil {
@@ -167,6 +178,15 @@ struct ViewerView: View {
                 }
                 .labelStyle(.titleAndIcon)
                 .disabled(appState.selectedPhoto == nil)
+
+                Menu {
+                    Button("Show Data File in Finder") {
+                        openSidecarInFinder()
+                    }
+                    .disabled(!sidecarExists)
+                } label: {
+                    Image(systemName: "ellipsis")
+                }
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
@@ -235,6 +255,13 @@ struct ViewerView: View {
             break
         }
     }
+
+    private func openSidecarInFinder() {
+        guard let sidecarURL, sidecarExists else {
+            return
+        }
+        NSWorkspace.shared.activateFileViewerSelecting([sidecarURL])
+    }
 }
 
 private struct PhotoCanvasView: View {
@@ -269,10 +296,15 @@ private struct PhotoCanvasView: View {
                         y: drawRect.minY + label.y * drawRect.height
                     )
 
-                    VStack(alignment: .leading, spacing: 2) {
+                    let dotSize: CGFloat = 10
+                    let labelOffset = CGSize(width: 14, height: -14)
+
+                    ZStack {
                         Circle()
                             .fill(Color.red)
-                            .frame(width: 10, height: 10)
+                            .frame(width: dotSize, height: dotSize)
+                            .position(x: point.x, y: point.y)
+
                         Text(label.text)
                             .font(.caption2)
                             .padding(.horizontal, 6)
@@ -280,8 +312,11 @@ private struct PhotoCanvasView: View {
                             .background(Color.black.opacity(0.65))
                             .foregroundStyle(.white)
                             .clipShape(Capsule())
+                            .position(
+                                x: point.x + labelOffset.width,
+                                y: point.y + labelOffset.height
+                            )
                     }
-                    .position(x: point.x, y: point.y)
                 }
 
                 if isPlacingLabel {
