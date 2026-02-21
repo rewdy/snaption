@@ -213,6 +213,27 @@ final class AppState: ObservableObject {
         scheduleAutosave()
     }
 
+    func updateLabel(id: String, text: String) {
+        let trimmedText = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedText.isEmpty else {
+            return
+        }
+
+        guard let index = labels.firstIndex(where: { $0.id == id }) else {
+            return
+        }
+
+        let existing = labels[index]
+        labels[index] = PointLabel(
+            id: existing.id,
+            x: existing.x,
+            y: existing.y,
+            text: trimmedText
+        )
+        notesSaveState = .dirty
+        scheduleAutosave()
+    }
+
     private var currentPhotoIndex: Int? {
         guard let selectedPhotoID else {
             return nil
@@ -391,3 +412,4 @@ final class AppState: ObservableObject {
         }
     }
 }
+

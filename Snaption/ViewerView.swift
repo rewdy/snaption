@@ -5,9 +5,8 @@ struct ViewerView: View {
     @ObservedObject var appState: AppState
     @State private var image: NSImage?
     @State private var newTagText = ""
-    @State private var isPlacingLabel = false
-    @State private var pendingLabelPoint: CGPoint?
-    @State private var newLabelText = ""
+    @State private var pendingLabel: PendingLabelDraft?
+    @State private var editRequest: LabelEditRequest?
 
     private var sidecarURL: URL? {
         appState.selectedPhoto?.sidecarURL
@@ -25,17 +24,36 @@ struct ViewerView: View {
             if appState.selectedPhoto != nil {
                 HStack(alignment: .top, spacing: 16) {
                     VStack(alignment: .leading, spacing: 8) {
-                        PhotoCanvasView(
-                            image: image,
-                            labels: appState.labels,
-                            isPlacingLabel: isPlacingLabel
-                        ) { normalizedPoint in
-                            guard isPlacingLabel else {
-                                return
-                            }
-                            pendingLabelPoint = normalizedPoint
-                            newLabelText = ""
-                        }
+                            PhotoCanvasView(
+                                image: image,
+                                labels: appState.labels,
+                                pendingLabel: $pendingLabel,
+                                editRequest: $editRequest,
+                                onPlaceLabel: { normalizedPoint, anchorPoint in
+                                    pendingLabel = PendingLabelDraft(
+                                        id: UUID(),
+                                        labelID: nil,
+                                        normalizedPoint: normalizedPoint,
+                                    anchorPoint: anchorPoint,
+                                    text: ""
+                                )
+                            },
+                            onSelectLabel: { label, anchorPoint in
+                                pendingLabel = PendingLabelDraft(
+                                    id: UUID(),
+                                    labelID: label.id,
+                                    normalizedPoint: CGPoint(x: label.x, y: label.y),
+                                    anchorPoint: anchorPoint,
+                                    text: label.text
+                                )
+                            },
+                            onSaveLabel: { draft, text in
+                                handleSaveLabel(draft: draft, text: text)
+                            },
+                            onCancelLabel: {
+                                    pendingLabel = nil
+                                }
+                            )
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                     }
 
@@ -47,12 +65,6 @@ struct ViewerView: View {
                             Text("\(appState.labels.count) labels")
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
-                        }
-
-                        if isPlacingLabel {
-                            Text("Label mode is active. Click the photo to place a point.")
-                                .font(.caption)
-                                .foregroundStyle(.blue)
                         }
 
                         TextEditor(text: Binding(
@@ -124,10 +136,16 @@ struct ViewerView: View {
                                             Text("(\(label.x, specifier: "%.3f"), \(label.y, specifier: "%.3f"))")
                                                 .font(.caption2)
                                                 .foregroundStyle(.secondary)
+                                            Button("Edit") {
+                                                editRequest = LabelEditRequest(labelID: label.id)
+                                            }
+                                            .buttonStyle(.bordered)
+                                            .controlSize(.small)
                                             Button("Remove") {
                                                 appState.removeLabel(id: label.id)
                                             }
-                                            .buttonStyle(.borderless)
+                                            .buttonStyle(.bordered)
+                                            .controlSize(.small)
                                         }
                                         .font(.caption)
                                     }
@@ -168,17 +186,6 @@ struct ViewerView: View {
                     .keyboardShortcut(.rightArrow, modifiers: [])
                 }
                 
-                Button {
-                    isPlacingLabel.toggle()
-                } label: {
-                    Label(
-                        isPlacingLabel ? "Cancel Label" : "Add Label",
-                        systemImage: isPlacingLabel ? "xmark" : "plus"
-                    )
-                }
-                .labelStyle(.titleAndIcon)
-                .disabled(appState.selectedPhoto == nil)
-
                 Menu {
                     Button("Show Data File in Finder") {
                         openSidecarInFinder()
@@ -196,47 +203,11 @@ struct ViewerView: View {
             guard let selectedPhoto = appState.selectedPhoto else {
                 image = nil
                 newTagText = ""
-                isPlacingLabel = false
-                pendingLabelPoint = nil
+                pendingLabel = nil
                 return
             }
 
             image = NSImage(contentsOf: selectedPhoto.imageURL)
-        }
-        .sheet(item: Binding(
-            get: {
-                pendingLabelPoint.map { PendingLabelPoint(x: $0.x, y: $0.y) }
-            },
-            set: { newValue in
-                pendingLabelPoint = newValue.map { CGPoint(x: $0.x, y: $0.y) }
-            }
-        )) { pendingPoint in
-            VStack(alignment: .leading, spacing: 12) {
-                Text("Add Label")
-                    .font(.headline)
-                Text("Coordinates: \(pendingPoint.x, specifier: "%.3f"), \(pendingPoint.y, specifier: "%.3f")")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-
-                TextField("Label text", text: $newLabelText)
-                    .textFieldStyle(.roundedBorder)
-
-                HStack {
-                    Spacer()
-                    Button("Cancel") {
-                        pendingLabelPoint = nil
-                    }
-                    Button("Add") {
-                        appState.addLabel(x: pendingPoint.x, y: pendingPoint.y, text: newLabelText)
-                        pendingLabelPoint = nil
-                        isPlacingLabel = false
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .disabled(newLabelText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                }
-            }
-            .padding()
-            .frame(width: 380)
         }
     }
 
@@ -256,6 +227,25 @@ struct ViewerView: View {
         }
     }
 
+    private func handleSaveLabel(draft: PendingLabelDraft, text: String) {
+        let trimmedText = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedText.isEmpty else {
+            return
+        }
+
+        if let labelID = draft.labelID {
+            appState.updateLabel(id: labelID, text: trimmedText)
+        } else {
+            appState.addLabel(
+                x: draft.normalizedPoint.x,
+                y: draft.normalizedPoint.y,
+                text: trimmedText
+            )
+        }
+
+        self.pendingLabel = nil
+    }
+
     private func openSidecarInFinder() {
         guard let sidecarURL, sidecarExists else {
             return
@@ -264,11 +254,72 @@ struct ViewerView: View {
     }
 }
 
+private struct BubbleContent: View {
+    let title: String
+    let coordinates: CGPoint
+    let initialText: String
+    let onSave: (String) -> Void
+    let onCancel: () -> Void
+    @State private var text: String
+
+    init(
+        title: String,
+        coordinates: CGPoint,
+        initialText: String,
+        onSave: @escaping (String) -> Void,
+        onCancel: @escaping () -> Void
+    ) {
+        self.title = title
+        self.coordinates = coordinates
+        self.initialText = initialText
+        self.onSave = onSave
+        self.onCancel = onCancel
+        self._text = State(initialValue: initialText)
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text(title)
+                .font(.headline)
+            Text("Coordinates: \(coordinates.x, specifier: "%.3f"), \(coordinates.y, specifier: "%.3f")")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+
+            TextField("Label text", text: $text)
+                .textFieldStyle(.roundedBorder)
+
+            HStack {
+                Spacer()
+                Button("Cancel") {
+                    onCancel()
+                }
+                Button("Save") {
+                    onSave(text)
+                }
+                .buttonStyle(.borderedProminent)
+                .disabled(text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            }
+        }
+        .padding()
+        .background(.regularMaterial)
+        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .stroke(Color.primary.opacity(0.08))
+        )
+        .shadow(radius: 8, y: 4)
+    }
+}
+
 private struct PhotoCanvasView: View {
     let image: NSImage?
     let labels: [PointLabel]
-    let isPlacingLabel: Bool
-    let onPlaceLabel: (CGPoint) -> Void
+    @Binding var pendingLabel: PendingLabelDraft?
+    @Binding var editRequest: LabelEditRequest?
+    let onPlaceLabel: (CGPoint, CGPoint) -> Void
+    let onSelectLabel: (PointLabel, CGPoint) -> Void
+    let onSaveLabel: (PendingLabelDraft, String) -> Void
+    let onCancelLabel: () -> Void
 
     var body: some View {
         GeometryReader { geometry in
@@ -290,6 +341,24 @@ private struct PhotoCanvasView: View {
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                 }
 
+                Color.clear
+                    .contentShape(Rectangle())
+                    .gesture(
+                        DragGesture(minimumDistance: 0)
+                            .onEnded { value in
+                                guard pendingLabel == nil else {
+                                    return
+                                }
+                                guard drawRect.contains(value.location), drawRect.width > 0, drawRect.height > 0 else {
+                                    return
+                                }
+
+                                let normalizedX = (value.location.x - drawRect.minX) / drawRect.width
+                                let normalizedY = (value.location.y - drawRect.minY) / drawRect.height
+                                onPlaceLabel(CGPoint(x: normalizedX, y: normalizedY), value.location)
+                            }
+                    )
+
                 ForEach(labels) { label in
                     let point = CGPoint(
                         x: drawRect.minX + label.x * drawRect.width,
@@ -298,60 +367,107 @@ private struct PhotoCanvasView: View {
 
                     let dotSize: CGFloat = 10
                     let labelOffset = CGSize(width: 14, height: -14)
+                    let hitSize: CGFloat = 16
+                    let isEditing = pendingLabel?.labelID == label.id
+                    let dotColor: Color = isEditing ? .green : .red
 
-                    ZStack {
-                        Circle()
-                            .fill(Color.red)
-                            .frame(width: dotSize, height: dotSize)
-                            .position(x: point.x, y: point.y)
+                    Circle()
+                        .fill(dotColor)
+                        .frame(width: dotSize, height: dotSize)
+                        .position(x: point.x, y: point.y)
 
+                    Button(action: {
+                        onSelectLabel(label, point)
+                    }) {
+                        Color.clear
+                            .frame(width: hitSize, height: hitSize)
+                    }
+                    .buttonStyle(.plain)
+                    .position(x: point.x, y: point.y)
+
+                    Button {
+                        onSelectLabel(label, point)
+                    } label: {
                         Text(label.text)
                             .font(.caption2)
-                            .padding(.horizontal, 6)
-                            .padding(.vertical, 2)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 4)
                             .background(Color.black.opacity(0.65))
                             .foregroundStyle(.white)
                             .clipShape(Capsule())
-                            .position(
-                                x: point.x + labelOffset.width,
-                                y: point.y + labelOffset.height
-                            )
+                            .padding(6)
+                            .contentShape(Rectangle())
                     }
+                    .buttonStyle(.plain)
+                    .position(
+                        x: point.x + labelOffset.width,
+                        y: point.y + labelOffset.height
+                    )
                 }
 
-                if isPlacingLabel {
-                    Rectangle()
-                        .fill(Color.blue.opacity(0.08))
-                        .overlay(
-                            Text("Click image to place label")
-                                .font(.caption)
-                                .padding(6)
-                                .background(Color.blue.opacity(0.9))
-                                .foregroundStyle(.white)
-                                .clipShape(Capsule())
-                                .padding(10),
-                            alignment: .topLeading
-                        )
+                if let pendingLabel, pendingLabel.isNew {
+                    let pendingPoint = CGPoint(
+                        x: drawRect.minX + pendingLabel.normalizedPoint.x * drawRect.width,
+                        y: drawRect.minY + pendingLabel.normalizedPoint.y * drawRect.height
+                    )
+                    Circle()
+                        .fill(Color.red)
+                        .frame(width: 10, height: 10)
+                        .position(x: pendingPoint.x, y: pendingPoint.y)
                 }
+
+                if let pendingLabel {
+                    let bubbleSize = CGSize(width: 300, height: 150)
+                    let bubblePoint = positionedBubblePoint(
+                        from: pendingLabel.anchorPoint,
+                        bubbleSize: bubbleSize,
+                        canvasSize: canvasSize
+                    )
+
+                    BubbleContent(
+                        title: pendingLabel.isNew ? "Add Label" : "Edit Label",
+                        coordinates: pendingLabel.normalizedPoint,
+                        initialText: pendingLabel.text,
+                        onSave: { text in
+                            onSaveLabel(pendingLabel, text)
+                        },
+                        onCancel: {
+                            onCancelLabel()
+                        }
+                    )
+                    .frame(width: bubbleSize.width, height: bubbleSize.height)
+                    .position(x: bubblePoint.x, y: bubblePoint.y)
+                }
+
             }
             .clipShape(RoundedRectangle(cornerRadius: 10))
             .contentShape(Rectangle())
-            .gesture(
-                DragGesture(minimumDistance: 0)
-                    .onEnded { value in
-                        guard isPlacingLabel else {
-                            return
-                        }
+            .onChange(of: editRequest?.id) { _ in
+                guard pendingLabel == nil, let request = editRequest else {
+                    return
+                }
+                guard let label = labels.first(where: { $0.id == request.labelID }) else {
+                    editRequest = nil
+                    return
+                }
+                guard drawRect.width > 0, drawRect.height > 0 else {
+                    editRequest = nil
+                    return
+                }
 
-                        guard drawRect.contains(value.location), drawRect.width > 0, drawRect.height > 0 else {
-                            return
-                        }
-
-                        let normalizedX = (value.location.x - drawRect.minX) / drawRect.width
-                        let normalizedY = (value.location.y - drawRect.minY) / drawRect.height
-                        onPlaceLabel(CGPoint(x: normalizedX, y: normalizedY))
-                    }
-            )
+                let anchorPoint = CGPoint(
+                    x: drawRect.minX + label.x * drawRect.width,
+                    y: drawRect.minY + label.y * drawRect.height
+                )
+                pendingLabel = PendingLabelDraft(
+                    id: UUID(),
+                    labelID: label.id,
+                    normalizedPoint: CGPoint(x: label.x, y: label.y),
+                    anchorPoint: anchorPoint,
+                    text: label.text
+                )
+                editRequest = nil
+            }
         }
     }
 
@@ -375,15 +491,43 @@ private struct PhotoCanvasView: View {
         let x = (canvasSize.width - width) / 2
         return CGRect(x: x, y: 0, width: width, height: height)
     }
+
+    private func positionedBubblePoint(
+        from anchorPoint: CGPoint,
+        bubbleSize: CGSize,
+        canvasSize: CGSize
+    ) -> CGPoint {
+        let margin: CGFloat = 12
+        let halfWidth = bubbleSize.width / 2
+        let halfHeight = bubbleSize.height / 2
+        let preferredBelowY = anchorPoint.y + margin + halfHeight
+        let preferredAboveY = anchorPoint.y - margin - halfHeight
+        let canFitBelow = (anchorPoint.y + margin + bubbleSize.height) <= canvasSize.height
+
+        let rawX = anchorPoint.x
+        let rawY = canFitBelow ? preferredBelowY : preferredAboveY
+
+        let clampedX = min(max(rawX, halfWidth), canvasSize.width - halfWidth)
+        let clampedY = min(max(rawY, halfHeight), canvasSize.height - halfHeight)
+        return CGPoint(x: clampedX, y: clampedY)
+    }
 }
 
-private struct PendingLabelPoint: Identifiable {
-    let x: Double
-    let y: Double
+private struct PendingLabelDraft: Identifiable {
+    let id: UUID
+    let labelID: String?
+    let normalizedPoint: CGPoint
+    let anchorPoint: CGPoint
+    var text: String
 
-    var id: String {
-        "\(x)-\(y)"
+    var isNew: Bool {
+        labelID == nil
     }
+}
+
+private struct LabelEditRequest: Identifiable {
+    let id: UUID = UUID()
+    let labelID: String
 }
 
 private struct FlowLayout<Item: Hashable, Content: View>: View {
