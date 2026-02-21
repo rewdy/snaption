@@ -5,9 +5,10 @@ struct StartView: View {
 
     var body: some View {
         VStack(spacing: 16) {
-            Text("Open a root folder to start a project.")
-                .multilineTextAlignment(.center)
-                .foregroundStyle(.secondary)
+            ContentUnavailableView(
+                "Open a root folder to start a project.",
+                systemImage: "photo.on.rectangle.angled"
+            )
 
             Button("Open Project Folder") {
                 appState.openProjectPicker()

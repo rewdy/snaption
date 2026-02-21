@@ -140,6 +140,7 @@ struct ViewerView: View {
                                                 .foregroundStyle(.secondary)
                                             Text(recording.url.lastPathComponent)
                                                 .lineLimit(1)
+                                                .help(recording.url.lastPathComponent)
                                             Spacer()
                                             Button {
                                                 audioPlayer.togglePlayback(for: recording.url)
@@ -158,7 +159,11 @@ struct ViewerView: View {
                                             Button {
                                                 openRecordingInFinder(recording.url)
                                             } label: {
-                                                Image(systemName: "folder")
+                                                ZStack {
+                                                    AudioProgressRing(progress: 1, isActive: false)
+                                                        .hidden()
+                                                    Image(systemName: "folder")
+                                                }
                                             }
                                             .buttonStyle(.bordered)
                                             .controlSize(.small)
