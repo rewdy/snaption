@@ -2,6 +2,12 @@
 
 Use this file at the start of each new coding session in this repo.
 
+## Planning Docs Location (Read First)
+
+- All planning/design/release/QA docs live in `planning/`.
+- At the start of each session, thoroughly review all docs in `planning/`.
+- Store any new planning/design/release/QA docs in `planning/` (not the repo root).
+
 ## 1) Product Snapshot
 
 - App name: `Snaption`

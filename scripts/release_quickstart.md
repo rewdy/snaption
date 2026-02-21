@@ -32,4 +32,4 @@ Updated: 2026-02-20
 ## Notes
 
 - Local release mode skips notarization and is expected to trigger Gatekeeper friction on other Macs.
-- Use `RELEASE_CHECKLIST.md` and `RELEASE_NOTES_TEMPLATE.md` for each release.
+- Use `planning/05-RELEASE_CHECKLIST.md` and `planning/08-RELEASE_NOTES_TEMPLATE.md` for each release.

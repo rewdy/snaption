@@ -299,6 +299,10 @@ All of the following must be true:
 
 ## 8) Immediate Next Actions
 
+(See also: consolidated next steps below.)
+
+## 8.1) Consolidated Next Steps
+
 1. Execute Milestone 6 hardening pass:
    - large-dataset performance profiling and tuning
    - malformed sidecar/error-path UX validation
@@ -347,7 +351,7 @@ Each agent must treat these as stable contracts unless a coordinated change is a
   - filename-based, no wraparound.
 
 Contract changes require:
-1. Updating `TECHNICAL_DESIGN.md`.
+1. Updating `planning/02-TECHNICAL_DESIGN.md`.
 2. Updating impacted tests in same PR.
 3. Calling out migration impact in PR notes.
 
@@ -378,3 +382,47 @@ Every agent PR should include:
 - Integrate to `main` at least once per day during active build.
 - Prefer smaller PRs (<500 LOC net when practical).
 - Resolve conflicts by contract owner for affected module.
+
+# Snaption Next Steps
+
+Updated: 2026-02-21
+
+## 1) Where We Are
+
+- MVP feature implementation is effectively complete (Milestones 0-5).
+- Active phase is Milestone 6: hardening, performance validation, release prep, and final UX polish.
+
+## 2) Immediate Priorities (Recommended Order)
+
+1. QA and regression pass
+- Validate all core flows:
+  - open folder -> progressive grid load
+  - viewer previous/next via buttons and keyboard arrows
+  - notes/tags/labels autosave and reload
+  - search across notes/tags/labels
+- Record any UX or data-integrity defects.
+
+2. Performance profiling on realistic data
+- Test with 4k-6k image library.
+- Measure:
+  - time-to-first-visible-thumbnails
+  - scroll smoothness during active indexing
+- memory behavior for thumbnail cache
+- Tune cache limits/prefetch behavior if needed.
+
+3. Hardening and tests
+- Add tests for:
+  - viewer toolbar interactions (back, add-label mode, prev/next)
+  - route-aware title/subtitle behavior
+  - malformed/partial sidecar edge cases not yet covered
+
+4. Packaging readiness (after QA confidence)
+- Complete final release checklist run:
+  - `scripts/release_preflight.sh`
+  - `scripts/release_build_notarize.sh`
+  - smoke test signed build on a clean machine
+
+## 3) Suggested First Task Next Session
+
+- Run a full manual QA pass against the current UI and toolbar flow changes with medium and large folder trees.
+- Log findings for final polish before cutting the first release.

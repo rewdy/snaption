@@ -18,7 +18,7 @@ Updated: 2026-02-20
 3. Ensure `.github/workflows/release.yml` will run from that tag.
 4. Run unit tests:
 - `xcodebuild test -project Snaption.xcodeproj -scheme Snaption -destination 'platform=macOS,arch=arm64' -only-testing:SnaptionTests`
-5. Complete manual QA from `QA_CHECKLIST.md`.
+5. Complete manual QA from `planning/04-QUALITY.md`.
 6. Confirm no blocker issues in known issues list.
 
 ## Package
@@ -46,6 +46,6 @@ Updated: 2026-02-20
 
 ## Publish
 
-1. Fill `RELEASE_NOTES_TEMPLATE.md`.
+1. Fill `planning/08-RELEASE_NOTES_TEMPLATE.md`.
 2. Publish artifact + checksum + release notes.
 3. Record known issues and follow-up tickets.

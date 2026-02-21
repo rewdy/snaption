@@ -54,15 +54,13 @@ For a photo like `IMG_0001.jpg`, Snaption writes `IMG_0001.md` in the same folde
 
 ## Project Docs
 
-- `REQUIREMENTS.md`
-- `FUNCTIONAL_SPEC.md`
-- `TECHNICAL_DESIGN.md`
-- `EXECUTION_PLAN.md`
-- `NEXT_STEPS.md`
-- `QA_CHECKLIST.md`
-- `PERFORMANCE_PROFILING.md`
-- `PACKAGING_SIGNING_NOTARIZATION.md`
-- `VERSIONING.md`
-- `RELEASE_CHECKLIST.md`
-- `RELEASE_NOTES_TEMPLATE.md`
+- `planning/00-REQUIREMENTS.md`
+- `planning/01-FUNCTIONAL_SPEC.md`
+- `planning/02-TECHNICAL_DESIGN.md`
+- `planning/03-EXECUTION_PLAN.md`
+- `planning/04-QUALITY.md`
+- `planning/05-RELEASE_CHECKLIST.md`
+- `planning/06-PACKAGING_SIGNING_NOTARIZATION.md`
+- `planning/07-VERSIONING.md`
+- `planning/08-RELEASE_NOTES_TEMPLATE.md`
 - `scripts/release_quickstart.md`

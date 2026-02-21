@@ -53,9 +53,9 @@ Notes:
 
 See also:
 - `scripts/release_quickstart.md`
-- `RELEASE_CHECKLIST.md`
-- `RELEASE_NOTES_TEMPLATE.md`
-- `VERSIONING.md`
+- `planning/05-RELEASE_CHECKLIST.md`
+- `planning/08-RELEASE_NOTES_TEMPLATE.md`
+- `planning/07-VERSIONING.md`
 
 ## GitHub Workflows
 
@@ -89,7 +89,7 @@ See also:
 ## Release Checklist
 
 1. Run full `SnaptionTests` and pass.
-2. Run manual QA checklist (`QA_CHECKLIST.md`) on medium + large datasets.
+2. Run manual QA checklist (`planning/04-QUALITY.md`) on medium + large datasets.
 3. Build Release archive and export signed app.
 4. Verify signature and hardened runtime.
 5. Notarize, staple, and re-verify.
