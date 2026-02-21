@@ -7,7 +7,7 @@ struct ViewerView: View {
     @State private var newTagText = ""
     @State private var pendingLabel: PendingLabelDraft?
     @State private var editRequest: LabelEditRequest?
-    @State private var faceBoxes: [CGRect] = []
+    @State private var faceObservations: [FaceObservation] = []
     private let faceDetectionService = FaceDetectionService()
 
     private var sidecarURL: URL? {
@@ -32,24 +32,49 @@ struct ViewerView: View {
                                 pendingLabel: $pendingLabel,
                                 isLabelsHidden: appState.areLabelsHidden,
                                 editRequest: $editRequest,
-                                faceBoxes: faceBoxes,
+                                faceObservations: faceObservations,
                                 isFaceFeaturesEnabled: appState.faceFeaturesEnabled,
                                 onPlaceLabel: { normalizedPoint, anchorPoint in
+                                    let draftID = UUID()
+                                    let featurePrint = featurePrintForPoint(normalizedPoint)
                                     pendingLabel = PendingLabelDraft(
-                                        id: UUID(),
+                                        id: draftID,
                                         labelID: nil,
                                         normalizedPoint: normalizedPoint,
                                     anchorPoint: anchorPoint,
-                                    text: ""
+                                    text: "",
+                                    featurePrint: featurePrint
                                 )
+                                    if let featurePrint {
+                                        Task {
+                                            let suggestion = await appState.suggestLabel(for: featurePrint)
+                                            await MainActor.run {
+                                                guard let pending = pendingLabel, pending.id == draftID else {
+                                                    return
+                                                }
+                                                if let suggestion, !suggestion.isEmpty {
+                                                    pendingLabel = PendingLabelDraft(
+                                                        id: pending.id,
+                                                        labelID: pending.labelID,
+                                                        normalizedPoint: pending.normalizedPoint,
+                                                        anchorPoint: pending.anchorPoint,
+                                                        text: suggestion,
+                                                        featurePrint: pending.featurePrint
+                                                    )
+                                                }
+                                            }
+                                        }
+                                    }
                             },
                             onSelectLabel: { label, anchorPoint in
+                                let featurePrint = featurePrintForPoint(CGPoint(x: label.x, y: label.y))
                                 pendingLabel = PendingLabelDraft(
                                     id: UUID(),
                                     labelID: label.id,
                                     normalizedPoint: CGPoint(x: label.x, y: label.y),
                                     anchorPoint: anchorPoint,
-                                    text: label.text
+                                    text: label.text,
+                                    featurePrint: featurePrint
                                 )
                             },
                             onSaveLabel: { draft, text in
@@ -219,7 +244,7 @@ struct ViewerView: View {
                 image = nil
                 newTagText = ""
                 pendingLabel = nil
-                faceBoxes = []
+                faceObservations = []
                 return
             }
 
@@ -231,24 +256,23 @@ struct ViewerView: View {
             areLabelsHidden: appState.areLabelsHidden
         )) {
             guard appState.faceFeaturesEnabled, !appState.areLabelsHidden else {
-                faceBoxes = []
+                faceObservations = []
                 return
             }
             guard let image else {
-                faceBoxes = []
+                faceObservations = []
                 return
             }
             do {
-                let result = try await faceDetectionService.detectFaces(in: image)
-                faceBoxes = result.bounds
+                faceObservations = try await faceDetectionService.detectFaces(in: image, includeFeaturePrints: true)
             } catch {
-                faceBoxes = []
+                faceObservations = []
             }
         }
         .onChange(of: appState.areLabelsHidden) { _, isHidden in
             if isHidden {
                 pendingLabel = nil
-                faceBoxes = []
+                faceObservations = []
             }
         }
     }
@@ -275,6 +299,8 @@ struct ViewerView: View {
             return
         }
 
+        appState.recordFaceLabelIfNeeded(labelText: trimmedText, featurePrint: draft.featurePrint)
+
         if let labelID = draft.labelID {
             appState.updateLabel(id: labelID, text: trimmedText)
         } else {
@@ -293,6 +319,19 @@ struct ViewerView: View {
             return
         }
         NSWorkspace.shared.activateFileViewerSelecting([sidecarURL])
+    }
+
+    private func featurePrintForPoint(_ normalizedPoint: CGPoint) -> Data? {
+        guard appState.faceFeaturesEnabled else {
+            return nil
+        }
+        let visionPoint = CGPoint(x: normalizedPoint.x, y: 1 - normalizedPoint.y)
+        for observation in faceObservations {
+            if observation.bounds.contains(visionPoint) {
+                return observation.featurePrint
+            }
+        }
+        return nil
     }
 }
 
@@ -359,7 +398,7 @@ private struct PhotoCanvasView: View {
     @Binding var pendingLabel: PendingLabelDraft?
     let isLabelsHidden: Bool
     @Binding var editRequest: LabelEditRequest?
-    let faceBoxes: [CGRect]
+    let faceObservations: [FaceObservation]
     let isFaceFeaturesEnabled: Bool
     let onPlaceLabel: (CGPoint, CGPoint) -> Void
     let onSelectLabel: (PointLabel, CGPoint) -> Void
@@ -388,8 +427,8 @@ private struct PhotoCanvasView: View {
                 }
 
                 if isFaceFeaturesEnabled && !isLabelsHidden {
-                    ForEach(Array(faceBoxes.enumerated()), id: \.offset) { _, box in
-                        let rect = faceRect(from: box, in: drawRect)
+                    ForEach(Array(faceObservations.enumerated()), id: \.offset) { _, observation in
+                        let rect = faceRect(from: observation.bounds, in: drawRect)
                         RoundedRectangle(cornerRadius: 4)
                             .stroke(Color.yellow.opacity(0.9), lineWidth: 2)
                             .frame(width: rect.width, height: rect.height)
@@ -539,7 +578,8 @@ private struct PhotoCanvasView: View {
                     labelID: label.id,
                     normalizedPoint: CGPoint(x: label.x, y: label.y),
                     anchorPoint: anchorPoint,
-                    text: label.text
+                    text: label.text,
+                    featurePrint: featurePrintForNormalizedPoint(CGPoint(x: label.x, y: label.y))
                 )
                 editRequest = nil
             }
@@ -614,6 +654,16 @@ private struct PhotoCanvasView: View {
         let height = normalizedRect.height * drawRect.height
         return CGRect(x: x, y: y, width: width, height: height)
     }
+
+    private func featurePrintForNormalizedPoint(_ normalizedPoint: CGPoint) -> Data? {
+        let visionPoint = CGPoint(x: normalizedPoint.x, y: 1 - normalizedPoint.y)
+        for observation in faceObservations {
+            if observation.bounds.contains(visionPoint) {
+                return observation.featurePrint
+            }
+        }
+        return nil
+    }
 }
 
 private struct PendingLabelDraft: Identifiable {
@@ -622,6 +672,7 @@ private struct PendingLabelDraft: Identifiable {
     let normalizedPoint: CGPoint
     let anchorPoint: CGPoint
     var text: String
+    let featurePrint: Data?
 
     var isNew: Bool {
         labelID == nil

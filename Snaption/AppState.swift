@@ -25,7 +25,6 @@ final class AppState: ObservableObject {
     @Published var faceFeaturesEnabled = false
     @Published var isFaceOptInPromptPresented = false
     @Published var isFaceDisableDialogPresented = false
-    @Published var isFacesGalleryPresented = false
     @Published var isAudioRecordingEnabled = false
     @Published var isAudioRecordingBlinking = false
     @Published var shouldSaveRecordingFiles = true
@@ -43,6 +42,7 @@ final class AppState: ObservableObject {
     private let audioRecordingService = AudioRecordingService()
     private let audioTranscriptionService = AudioTranscriptionService()
     private let audioSummaryService = AudioSummaryService()
+    private var faceFeatureKey: String?
     private var audioRecordingTask: Task<Void, Never>?
     private var audioBlinkTask: Task<Void, Never>?
     private var pendingAudioURL: URL?
@@ -134,6 +134,13 @@ final class AppState: ObservableObject {
         startAudioRecordingIfNeeded()
     }
 
+    func openFaceGallery() {
+        flushPendingNotesIfNeeded()
+        stopAudioRecordingIfNeeded()
+        route = .faceGallery
+        syncPresentationOutput()
+    }
+
     func goToPreviousPhoto() {
         guard let currentPhotoIndex, currentPhotoIndex > 0 else {
             return
@@ -208,12 +215,8 @@ final class AppState: ObservableObject {
         audioRecordingService.stopRecording()
         if let url = pendingAudioURL {
             pendingAudioURL = nil
-            if shouldAppendRecordingText {
-                Task { [weak self] in
-                    await self?.transcribeAndAppend(url: url)
-                }
-            } else if !shouldSaveRecordingFiles {
-                trashAudioFile(at: url)
+            Task { [weak self] in
+                await self?.processRecording(url: url)
             }
         }
     }
@@ -240,6 +243,18 @@ final class AppState: ObservableObject {
         let baseName = photo.imageURL.deletingPathExtension().lastPathComponent
         let filename = "\(baseName)-\(timestamp).m4a"
         return photo.imageURL.deletingLastPathComponent().appendingPathComponent(filename)
+    }
+
+    private func processRecording(url: URL) async {
+        let finalURL = await audioRecordingService.trimSilence(at: url)
+
+        if shouldAppendRecordingText {
+            await transcribeAndAppend(url: finalURL)
+        }
+
+        if !shouldSaveRecordingFiles {
+            trashAudioFile(at: finalURL)
+        }
     }
 
     private func transcribeAndAppend(url: URL) async {
@@ -270,9 +285,6 @@ final class AppState: ObservableObject {
             }
         }
 
-        if !shouldSaveRecordingFiles {
-            trashAudioFile(at: url)
-        }
     }
 
     private func appendRecordingText(_ text: String, date: Date) {
@@ -544,7 +556,8 @@ final class AppState: ObservableObject {
         statusMessage = nil
         selectedPhotoID = nil
         libraryViewModel.loadProject(rootURL: url)
-        updateFaceFeatureState(for: url)
+        faceFeatureKey = faceFeatureStore.persistentKey(for: url, userDefaults: userDefaults)
+        updateFaceFeatureState()
         route = .library
         syncPresentationOutput()
 
@@ -554,13 +567,13 @@ final class AppState: ObservableObject {
     }
 
     func enableFaceFeatures() {
-        guard let rootURL = projectRootURL else {
+        guard let rootURL = projectRootURL, let faceFeatureKey else {
             return
         }
         faceFeaturesEnabled = true
-        userDefaults.set(true, forKey: faceFeatureStore.preferenceKey(for: rootURL))
+        userDefaults.set(true, forKey: faceFeatureStore.preferenceKey(forKey: faceFeatureKey))
         do {
-            try faceFeatureStore.ensureCacheDirectory(for: rootURL)
+            try faceFeatureStore.ensureCacheDirectory(forKey: faceFeatureKey)
         } catch {
             statusMessage = "Failed to create face feature cache."
         }
@@ -568,11 +581,11 @@ final class AppState: ObservableObject {
     }
 
     func declineFaceFeatures() {
-        guard let rootURL = projectRootURL else {
+        guard let faceFeatureKey else {
             return
         }
         faceFeaturesEnabled = false
-        userDefaults.set(false, forKey: faceFeatureStore.preferenceKey(for: rootURL))
+        userDefaults.set(false, forKey: faceFeatureStore.preferenceKey(forKey: faceFeatureKey))
         libraryViewModel.stopFaceIndexing()
     }
 
@@ -581,35 +594,43 @@ final class AppState: ObservableObject {
     }
 
     func disableFaceFeatures(purgeData: Bool) {
-        guard let rootURL = projectRootURL else {
+        guard let faceFeatureKey else {
             return
         }
         faceFeaturesEnabled = false
-        userDefaults.set(false, forKey: faceFeatureStore.preferenceKey(for: rootURL))
+        userDefaults.set(false, forKey: faceFeatureStore.preferenceKey(forKey: faceFeatureKey))
         libraryViewModel.stopFaceIndexing()
         if purgeData {
             do {
-                try faceFeatureStore.purgeCache(for: rootURL)
+                try faceFeatureStore.purgeCache(forKey: faceFeatureKey)
             } catch {
                 statusMessage = "Failed to purge face feature cache."
             }
         }
+        if route == .faceGallery {
+            route = .library
+        }
     }
 
     private func startFaceIndexingIfNeeded() {
-        guard let rootURL = projectRootURL else {
+        guard let rootURL = projectRootURL, let faceFeatureKey else {
             return
         }
-        let storeURL = faceFeatureStore.indexFileURL(for: rootURL)
+        let storeURL = faceFeatureStore.indexFileURL(forKey: faceFeatureKey)
         libraryViewModel.startFaceIndexing(rootURL: rootURL, storeURL: storeURL, isEnabled: faceFeaturesEnabled)
     }
 
-    private func updateFaceFeatureState(for url: URL) {
-        let key = faceFeatureStore.preferenceKey(for: url)
+    private func updateFaceFeatureState() {
+        guard let faceFeatureKey else {
+            faceFeaturesEnabled = false
+            isFaceOptInPromptPresented = true
+            return
+        }
+        let key = faceFeatureStore.preferenceKey(forKey: faceFeatureKey)
         if let stored = userDefaults.object(forKey: key) as? Bool {
             faceFeaturesEnabled = stored
             if stored {
-                try? faceFeatureStore.ensureCacheDirectory(for: url)
+                try? faceFeatureStore.ensureCacheDirectory(forKey: faceFeatureKey)
             }
         } else {
             faceFeaturesEnabled = false
@@ -660,5 +681,32 @@ final class AppState: ObservableObject {
         } else {
             presentationWindowController.updatePhoto(url: nil)
         }
+    }
+
+    func suggestLabel(for featurePrint: Data) async -> String? {
+        guard faceFeaturesEnabled, let faceFeatureKey else {
+            return nil
+        }
+        let storeURL = faceFeatureStore.labelStoreURL(forKey: faceFeatureKey)
+        let store = FaceLabelStore(storeURL: storeURL)
+        return await store.suggestLabel(for: featurePrint)
+    }
+
+    func recordFaceLabelIfNeeded(labelText: String, featurePrint: Data?) {
+        guard faceFeaturesEnabled, let faceFeatureKey, let featurePrint else {
+            return
+        }
+        let storeURL = faceFeatureStore.labelStoreURL(forKey: faceFeatureKey)
+        let store = FaceLabelStore(storeURL: storeURL)
+        Task {
+            await store.append(label: labelText, featurePrint: featurePrint)
+        }
+    }
+
+    func faceIndexStoreURL() -> URL? {
+        guard let faceFeatureKey else {
+            return nil
+        }
+        return faceFeatureStore.indexFileURL(forKey: faceFeatureKey)
     }
 }

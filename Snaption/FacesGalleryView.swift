@@ -47,9 +47,9 @@ struct FacesGalleryView: View {
 
         for entry in entries.values {
             let url = URL(fileURLWithPath: entry.photoPath)
-            for rect in entry.faces {
+            for face in entry.faces {
                 tiles.append(
-                    FaceTile(id: UUID(), imageURL: url, normalizedRect: rect)
+                    FaceTile(id: UUID(), imageURL: url, normalizedRect: face.bounds)
                 )
             }
         }

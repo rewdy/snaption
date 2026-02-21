@@ -281,11 +281,12 @@ final class LibraryViewModel: ObservableObject {
                 }
 
                 do {
-                    let result = try await detector.detectFaces(in: image)
+                    let result = try await detector.detectFaces(in: image, includeFeaturePrints: true)
+                    let faces = result.map { FaceIndexFace(bounds: $0.bounds, featurePrint: $0.featurePrint) }
                     let entry = FaceIndexEntry(
                         photoPath: item.imageURL.path,
                         photoModifiedAt: modified,
-                        faces: result.bounds
+                        faces: faces
                     )
                     entries[item.id] = entry
                 } catch {

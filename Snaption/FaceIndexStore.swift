@@ -3,7 +3,12 @@ import Foundation
 struct FaceIndexEntry: Codable, Sendable {
     let photoPath: String
     let photoModifiedAt: Date
-    let faces: [CGRect]
+    let faces: [FaceIndexFace]
+}
+
+struct FaceIndexFace: Codable, Sendable {
+    let bounds: CGRect
+    let featurePrint: Data?
 }
 
 actor FaceIndexStore {

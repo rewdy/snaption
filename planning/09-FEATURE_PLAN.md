@@ -82,11 +82,11 @@ This plan breaks the new features into agent‑sized tasks with clear ownership,
 ### Task F4 — Label Suggestions + Face Gallery (Implement)
 **Owner:** Agent A  
 **Scope:**
-- Suggest known label when placing label on a detected face.
-- Create Faces view (gallery), cluster display, batch assign.
+- Suggest known label when placing label on a detected face (feature print similarity).
+- Create Faces view (gallery) as a full view route from Library toolbar.
 **Acceptance:**
 - Suggestion accuracy + confirm flow.
-- Faces view shows counts and supports batch assign.
+- Faces view shows detected faces.
 
 ### Task F4R — Review
 **Owner:** Agent B  
@@ -105,6 +105,7 @@ This plan breaks the new features into agent‑sized tasks with clear ownership,
 - Button red while recording.
 - Blink 3× on photo change when recording active.
 - Start/stop per photo, save `.m4a` with timestamp.
+- Trim silence from recordings (remove long pauses).
 **Touchpoints:**
 - `ViewerView`, new `AudioRecordingService`.
 **Acceptance:**
@@ -163,4 +164,3 @@ This plan breaks the new features into agent‑sized tasks with clear ownership,
   - Files touched
   - Risks/issues
   - Next task ready
-
