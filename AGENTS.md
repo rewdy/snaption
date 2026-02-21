@@ -50,6 +50,8 @@ Use this file at the start of each new coding session in this repo.
 
 - Preferred run/test path:
   - `xcodebuild test -project Snaption.xcodeproj -scheme Snaption -destination 'platform=macOS,arch=arm64' -only-testing:SnaptionTests`
+- Before pushing code: run UI tests locally (do not skip):
+  - `xcodebuild test -project Snaption.xcodeproj -scheme Snaption -destination 'platform=macOS,arch=arm64' -only-testing:SnaptionUITests`
 - Keep `.vscode` in repo and do not remove it (user preference).
 - When modifying nested observable objects, verify parent view update propagation.
 - Avoid destructive git operations; repository may include user changes.

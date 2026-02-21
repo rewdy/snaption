@@ -53,7 +53,8 @@ jobs:
             -project Snaption.xcodeproj \
             -scheme Snaption \
             -destination 'platform=macOS' \
-            -only-testing:SnaptionTests
+            -only-testing:SnaptionTests \
+            -skip-testing:SnaptionUITests
 
       - name: Build release artifact (local signing mode)
         run: |

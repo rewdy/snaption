@@ -24,7 +24,8 @@ jobs:
             -project Snaption.xcodeproj \
             -scheme Snaption \
             -destination 'platform=macOS' \
-            -only-testing:SnaptionTests
+            -only-testing:SnaptionTests \
+            -skip-testing:SnaptionUITests
 
   build-main-artifact:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
