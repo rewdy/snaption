@@ -145,6 +145,7 @@ struct ViewerView: View {
                                             }
                                             .buttonStyle(.bordered)
                                             .controlSize(.small)
+                                            .clipShape(Circle())
 
                                             Text(url.lastPathComponent)
                                                 .lineLimit(1)
