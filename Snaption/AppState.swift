@@ -63,6 +63,7 @@ final class AppState: ObservableObject {
     private var autosaveTask: Task<Void, Never>?
     private var libraryViewModelChangeCancellable: AnyCancellable?
     private let autosaveDelayNanoseconds: UInt64 = 600_000_000
+    private let summaryMinimumWordCount = 100
 
     init(
         projectService: ProjectService,
@@ -304,23 +305,47 @@ final class AppState: ObservableObject {
             return
         }
 
+        let text: String
         do {
-            let text = try await audioTranscriptionService.transcribeAudio(at: url)
-            await MainActor.run { [weak self] in
-                self?.appendRecordingText(text, date: Date(), for: photo)
-            }
-            if shouldAppendRecordingSummary {
-                let summary = try await audioSummaryService.summarize(text)
-                await MainActor.run { [weak self] in
-                    self?.appendRecordingSummary(summary, date: Date(), for: photo)
-                }
-            }
+            text = try await audioTranscriptionService.transcribeAudio(at: url)
         } catch {
             await MainActor.run {
                 statusMessage = "Failed to transcribe audio."
             }
+            return
         }
 
+        await MainActor.run { [weak self] in
+            self?.appendRecordingText(text, date: Date(), for: photo)
+        }
+
+        guard shouldAppendRecordingSummary else {
+            return
+        }
+
+        let wordCount = countWords(in: text)
+        if wordCount < summaryMinimumWordCount {
+            await MainActor.run { [weak self] in
+                self?.appendRecordingSummary(text, date: Date(), for: photo)
+            }
+            return
+        }
+
+        do {
+            let summary = try await audioSummaryService.summarize(text)
+            await MainActor.run { [weak self] in
+                self?.appendRecordingSummary(summary, date: Date(), for: photo)
+            }
+        } catch {
+            await MainActor.run {
+                statusMessage = "Failed to summarize audio."
+            }
+        }
+
+    }
+
+    private func countWords(in text: String) -> Int {
+        text.split(whereSeparator: { $0.isWhitespace || $0.isNewline }).count
     }
 
     private func appendRecordingText(_ text: String, date: Date, for photo: PhotoItem) {
