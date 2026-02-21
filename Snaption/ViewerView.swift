@@ -337,6 +337,7 @@ private struct PhotoCanvasView: View {
     let onSelectLabel: (PointLabel, CGPoint) -> Void
     let onSaveLabel: (PendingLabelDraft, String) -> Void
     let onCancelLabel: () -> Void
+    @State private var labelSizes: [String: CGSize] = [:]
 
     var body: some View {
         GeometryReader { geometry in
@@ -384,10 +385,15 @@ private struct PhotoCanvasView: View {
                         )
 
                         let dotSize: CGFloat = 10
-                        let labelOffset = CGSize(width: 14, height: -14)
                         let hitSize: CGFloat = 16
                         let isEditing = pendingLabel?.labelID == label.id
-                        let dotColor: Color = isEditing ? .green : .red
+                        let dotColor: Color = isEditing ? Color(red: 0.0, green: 0.5686, blue: 1.0) : Color(red: 0.7608, green: 0.5098, blue: 0.9647)
+                        let labelSize = labelSizes[label.id] ?? CGSize(width: 80, height: 24)
+                        let labelPoint = positionedLabelPoint(
+                            from: point,
+                            labelSize: labelSize,
+                            canvasSize: canvasSize
+                        )
 
                         Circle()
                             .fill(dotColor)
@@ -413,14 +419,21 @@ private struct PhotoCanvasView: View {
                                 .background(Color.black.opacity(0.65))
                                 .foregroundStyle(.white)
                                 .clipShape(Capsule())
+                                .shadow(color: Color.white.opacity(0.3), radius: 2, x: 0, y: 1)
                                 .padding(6)
                                 .contentShape(Rectangle())
+                                .background(
+                                    GeometryReader { proxy in
+                                        Color.clear
+                                            .preference(
+                                                key: LabelSizePreferenceKey.self,
+                                                value: [label.id: proxy.size]
+                                            )
+                                    }
+                                )
                         }
                         .buttonStyle(.plain)
-                        .position(
-                            x: point.x + labelOffset.width,
-                            y: point.y + labelOffset.height
-                        )
+                        .position(x: labelPoint.x, y: labelPoint.y)
                     }
                 }
 
@@ -461,6 +474,11 @@ private struct PhotoCanvasView: View {
             }
             .clipShape(RoundedRectangle(cornerRadius: 10))
             .contentShape(Rectangle())
+            .onPreferenceChange(LabelSizePreferenceKey.self) { sizes in
+                if !sizes.isEmpty {
+                    labelSizes.merge(sizes) { _, new in new }
+                }
+            }
             .onChange(of: editRequest?.id) { _ in
                 guard pendingLabel == nil, !isLabelsHidden, let request = editRequest else {
                     return
@@ -530,6 +548,26 @@ private struct PhotoCanvasView: View {
         let clampedY = min(max(rawY, halfHeight), canvasSize.height - halfHeight)
         return CGPoint(x: clampedX, y: clampedY)
     }
+
+    private func positionedLabelPoint(
+        from anchorPoint: CGPoint,
+        labelSize: CGSize,
+        canvasSize: CGSize
+    ) -> CGPoint {
+        let margin: CGFloat = 6
+        let halfWidth = labelSize.width / 2
+        let halfHeight = labelSize.height / 2
+        let preferredBelowY = anchorPoint.y + margin + halfHeight
+        let preferredAboveY = anchorPoint.y - margin - halfHeight
+        let canFitBelow = (anchorPoint.y + margin + labelSize.height) <= canvasSize.height
+
+        let rawX = anchorPoint.x
+        let rawY = canFitBelow ? preferredBelowY : preferredAboveY
+
+        let clampedX = min(max(rawX, halfWidth), canvasSize.width - halfWidth)
+        let clampedY = min(max(rawY, halfHeight), canvasSize.height - halfHeight)
+        return CGPoint(x: clampedX, y: clampedY)
+    }
 }
 
 private struct PendingLabelDraft: Identifiable {
@@ -547,6 +585,14 @@ private struct PendingLabelDraft: Identifiable {
 private struct LabelEditRequest: Identifiable {
     let id: UUID = UUID()
     let labelID: String
+}
+
+private struct LabelSizePreferenceKey: PreferenceKey {
+    static var defaultValue: [String: CGSize] = [:]
+
+    static func reduce(value: inout [String: CGSize], nextValue: () -> [String: CGSize]) {
+        value.merge(nextValue()) { _, new in new }
+    }
 }
 
 private struct FlowLayout<Item: Hashable, Content: View>: View {
