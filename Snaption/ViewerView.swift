@@ -135,7 +135,13 @@ struct ViewerView: View {
                                             Button {
                                                 audioPlayer.togglePlayback(for: url)
                                             } label: {
-                                                Image(systemName: audioPlayer.isPlaying(url) ? "pause.fill" : "play.fill")
+                                                ZStack {
+                                                    AudioProgressRing(
+                                                        progress: audioPlayer.progress(for: url),
+                                                        isActive: audioPlayer.isPlaying(url)
+                                                    )
+                                                    Image(systemName: audioPlayer.isPlaying(url) ? "pause.fill" : "play.fill")
+                                                }
                                             }
                                             .buttonStyle(.bordered)
                                             .controlSize(.small)
@@ -777,7 +783,9 @@ private final class AudioPlayerController: NSObject, ObservableObject, AVAudioPl
     let objectWillChange = PassthroughSubject<Void, Never>()
     private(set) var currentURL: URL?
     private(set) var isPlaying = false
+    private(set) var progress: Double = 0
     private var player: AVAudioPlayer?
+    private var progressTimer: Timer?
 
     func isPlaying(_ url: URL) -> Bool {
         isPlaying && currentURL == url
@@ -791,6 +799,13 @@ private final class AudioPlayerController: NSObject, ObservableObject, AVAudioPl
         }
     }
 
+    func progress(for url: URL) -> Double {
+        guard isPlaying(url) else {
+            return 0
+        }
+        return progress
+    }
+
     func play(_ url: URL) {
         stop()
         do {
@@ -800,6 +815,8 @@ private final class AudioPlayerController: NSObject, ObservableObject, AVAudioPl
             player.play()
             currentURL = url
             isPlaying = true
+            progress = 0
+            startProgressTimer()
             objectWillChange.send()
         } catch {
             stop()
@@ -811,10 +828,48 @@ private final class AudioPlayerController: NSObject, ObservableObject, AVAudioPl
         player = nil
         currentURL = nil
         isPlaying = false
+        progress = 0
+        stopProgressTimer()
         objectWillChange.send()
     }
 
     func audioPlayerDidFinishPlaying(_ player: AVAudioPlayer, successfully flag: Bool) {
         stop()
+    }
+
+    private func startProgressTimer() {
+        stopProgressTimer()
+        progressTimer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { [weak self] _ in
+            guard let self, let player else {
+                return
+            }
+            guard player.duration > 0 else {
+                return
+            }
+            let value = player.currentTime / player.duration
+            progress = min(max(value, 0), 1)
+            objectWillChange.send()
+        }
+    }
+
+    private func stopProgressTimer() {
+        progressTimer?.invalidate()
+        progressTimer = nil
+    }
+}
+
+private struct AudioProgressRing: View {
+    let progress: Double
+    let isActive: Bool
+
+    var body: some View {
+        Circle()
+            .trim(from: 0, to: max(0.02, progress))
+            .stroke(
+                isActive ? Color.accentColor : Color.secondary.opacity(0.3),
+                style: StrokeStyle(lineWidth: 2, lineCap: .round)
+            )
+            .rotationEffect(.degrees(-90))
+            .frame(width: 18, height: 18)
     }
 }
