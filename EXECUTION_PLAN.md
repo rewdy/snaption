@@ -2,9 +2,9 @@
 
 This plan converts requirements and technical design into implementable milestones and agent-ready task units.
 
-## Status Snapshot (2026-02-19)
+## Status Snapshot (2026-02-21)
 
-- Overall: MVP core feature set is implemented; hardening/performance/release-readiness remains.
+- Overall: MVP core feature set is implemented; hardening/performance/release-readiness remains active.
 - Current app identity: `Snaption` (renamed from earlier `PhotoInfo` references in docs/code history).
 
 Milestone status:
@@ -21,6 +21,10 @@ Recent implementation notes:
 - Added keyboard navigation in viewer:
   - Left arrow -> previous photo
   - Right arrow -> next photo
+- Completed major toolbar/header modernization:
+  - Library controls moved to app toolbar
+  - Route-specific viewer toolbar actions
+  - Viewer title/subtitle now reflect folder hierarchy + file/save context
 
 ## 1) Delivery Strategy
 

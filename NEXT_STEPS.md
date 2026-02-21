@@ -1,11 +1,11 @@
 # Snaption Next Steps
 
-Updated: 2026-02-19
+Updated: 2026-02-21
 
 ## 1) Where We Are
 
 - MVP feature implementation is effectively complete (Milestones 0-5).
-- Active phase is Milestone 6: hardening, performance validation, and release prep.
+- Active phase is Milestone 6: hardening, performance validation, release prep, and final UX polish.
 
 ## 2) Immediate Priorities (Recommended Order)
 
@@ -22,24 +22,22 @@ Updated: 2026-02-19
 - Measure:
   - time-to-first-visible-thumbnails
   - scroll smoothness during active indexing
-  - memory behavior for thumbnail cache
+- memory behavior for thumbnail cache
 - Tune cache limits/prefetch behavior if needed.
 
 3. Hardening and tests
 - Add tests for:
-  - nested observable update propagation behavior
-  - keyboard navigation behavior
-  - malformed/partial sidecar edge cases
-- Resolve remaining Xcode warnings that are not noise (in progress: destination warning removed, one toolchain noise message remains).
+  - viewer toolbar interactions (back, add-label mode, prev/next)
+  - route-aware title/subtitle behavior
+  - malformed/partial sidecar edge cases not yet covered
 
 4. Packaging readiness (after QA confidence)
-- Define signing/notarization path for direct-download distribution.
-- Add a lightweight release checklist (versioning, archive, smoke test).
-- Use automation scripts:
+- Complete final release checklist run:
   - `scripts/release_preflight.sh`
   - `scripts/release_build_notarize.sh`
+  - smoke test signed build on a clean machine
 
 ## 3) Suggested First Task Next Session
 
-- Start with a structured manual QA run using a medium and large folder tree.
-- Log findings in a short checklist file so fixes can be tracked and batched.
+- Run a full manual QA pass against the current UI and toolbar flow changes with medium and large folder trees.
+- Log findings for final polish before cutting the first release.
