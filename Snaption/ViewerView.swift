@@ -1,4 +1,6 @@
 import AppKit
+import AVFoundation
+import Combine
 import SwiftUI
 
 struct ViewerView: View {
@@ -8,6 +10,8 @@ struct ViewerView: View {
     @State private var pendingLabel: PendingLabelDraft?
     @State private var editRequest: LabelEditRequest?
     @State private var faceObservations: [FaceObservation] = []
+    @State private var recordings: [URL] = []
+    @StateObject private var audioPlayer = AudioPlayerController()
     private let faceDetectionService = FaceDetectionService()
 
     private var sidecarURL: URL? {
@@ -112,6 +116,39 @@ struct ViewerView: View {
                             Text(notesStatusMessage)
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
+                        }
+
+                        Divider()
+
+                        Text("Recordings")
+                            .font(.headline)
+
+                        if recordings.isEmpty {
+                            Text("No recordings yet.")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        } else {
+                            ScrollView {
+                                VStack(alignment: .leading, spacing: 6) {
+                                    ForEach(recordings, id: \.self) { url in
+                                        HStack(spacing: 8) {
+                                            Button {
+                                                audioPlayer.togglePlayback(for: url)
+                                            } label: {
+                                                Image(systemName: audioPlayer.isPlaying(url) ? "pause.fill" : "play.fill")
+                                            }
+                                            .buttonStyle(.bordered)
+                                            .controlSize(.small)
+
+                                            Text(url.lastPathComponent)
+                                                .lineLimit(1)
+                                            Spacer()
+                                        }
+                                        .font(.caption)
+                                    }
+                                }
+                            }
+                            .frame(maxHeight: 140)
                         }
 
                         Divider()
@@ -249,6 +286,8 @@ struct ViewerView: View {
             }
 
             image = NSImage(contentsOf: selectedPhoto.imageURL)
+            recordings = loadRecordings(for: selectedPhoto)
+            audioPlayer.stop()
         }
         .task(id: FaceDetectionKey(
             photoID: appState.selectedPhotoID,
@@ -332,6 +371,23 @@ struct ViewerView: View {
             }
         }
         return nil
+    }
+
+    private func loadRecordings(for photo: PhotoItem) -> [URL] {
+        let directory = photo.imageURL.deletingLastPathComponent()
+        let baseName = photo.imageURL.deletingPathExtension().lastPathComponent
+        guard let files = try? FileManager.default.contentsOfDirectory(
+            at: directory,
+            includingPropertiesForKeys: nil,
+            options: [.skipsHiddenFiles]
+        ) else {
+            return []
+        }
+
+        return files
+            .filter { $0.pathExtension.lowercased() == "m4a" }
+            .filter { $0.lastPathComponent.hasPrefix("\(baseName)-") }
+            .sorted { $0.lastPathComponent.localizedStandardCompare($1.lastPathComponent) == .orderedAscending }
     }
 }
 
@@ -714,5 +770,51 @@ private struct FlowLayout<Item: Hashable, Content: View>: View {
                 }
             }
         }
+    }
+}
+
+private final class AudioPlayerController: NSObject, ObservableObject, AVAudioPlayerDelegate {
+    let objectWillChange = PassthroughSubject<Void, Never>()
+    private(set) var currentURL: URL?
+    private(set) var isPlaying = false
+    private var player: AVAudioPlayer?
+
+    func isPlaying(_ url: URL) -> Bool {
+        isPlaying && currentURL == url
+    }
+
+    func togglePlayback(for url: URL) {
+        if isPlaying(url) {
+            stop()
+        } else {
+            play(url)
+        }
+    }
+
+    func play(_ url: URL) {
+        stop()
+        do {
+            let player = try AVAudioPlayer(contentsOf: url)
+            self.player = player
+            player.delegate = self
+            player.play()
+            currentURL = url
+            isPlaying = true
+            objectWillChange.send()
+        } catch {
+            stop()
+        }
+    }
+
+    func stop() {
+        player?.stop()
+        player = nil
+        currentURL = nil
+        isPlaying = false
+        objectWillChange.send()
+    }
+
+    func audioPlayerDidFinishPlaying(_ player: AVAudioPlayer, successfully flag: Bool) {
+        stop()
     }
 }
