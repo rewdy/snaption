@@ -35,11 +35,16 @@ struct LibraryView: View {
             }
 
             if appState.libraryViewModel.displayedItems.isEmpty && !appState.libraryViewModel.isIndexing {
-                ContentUnavailableView(
-                    "No photos found",
-                    systemImage: "photo.on.rectangle.angled",
-                    description: Text("Supported formats: jpg, jpeg, png")
-                )
+                VStack {
+                    Spacer()
+                    ContentUnavailableView(
+                        "No photos found",
+                        systemImage: "photo.on.rectangle.angled",
+                        description: Text("Supported formats: jpg, jpeg, png")
+                    )
+                    Spacer()
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
                 ScrollView {
                     if appState.libraryViewModel.groupByFolder {
