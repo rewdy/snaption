@@ -12,7 +12,16 @@ DESTINATION="${DESTINATION:-platform=macOS,arch=arm64}"
 NOTARY_PROFILE="${NOTARY_PROFILE:-}"
 LOCAL_RELEASE="${LOCAL_RELEASE:-0}"
 SELF_SIGN_IDENTITY="${SELF_SIGN_IDENTITY:--}"
-DEVELOPER_DIR_PATH="${DEVELOPER_DIR_PATH:-${DEVELOPER_DIR:-/Applications/Xcode.app/Contents/Developer}}"
+DEFAULT_DEVELOPER_DIR="/Applications/Xcode.app/Contents/Developer"
+if [[ -z "${DEVELOPER_DIR_PATH:-}" ]]; then
+  if [[ -n "${DEVELOPER_DIR:-}" ]]; then
+    DEVELOPER_DIR_PATH="$DEVELOPER_DIR"
+  elif command -v xcode-select >/dev/null 2>&1; then
+    DEVELOPER_DIR_PATH="$(xcode-select -p)"
+  else
+    DEVELOPER_DIR_PATH="$DEFAULT_DEVELOPER_DIR"
+  fi
+fi
 
 mkdir -p "$(dirname "$ARCHIVE_PATH")" "$EXPORT_DIR" "$(dirname "$ZIP_PATH")"
 
