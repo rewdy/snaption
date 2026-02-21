@@ -132,6 +132,15 @@ struct ViewerView: View {
                                 VStack(alignment: .leading, spacing: 6) {
                                     ForEach(recordings) { recording in
                                         HStack(spacing: 8) {
+                                            Text(recording.modifiedAt, style: .date)
+                                                .font(.caption2)
+                                                .foregroundStyle(.secondary)
+                                            Text(recording.modifiedAt, style: .time)
+                                                .font(.caption2)
+                                                .foregroundStyle(.secondary)
+                                            Text(recording.url.lastPathComponent)
+                                                .lineLimit(1)
+                                            Spacer()
                                             Button {
                                                 audioPlayer.togglePlayback(for: recording.url)
                                             } label: {
@@ -146,16 +155,15 @@ struct ViewerView: View {
                                             .buttonStyle(.bordered)
                                             .controlSize(.small)
                                             .clipShape(Circle())
-
-                                            Text(recording.modifiedAt, style: .date)
-                                                .font(.caption2)
-                                                .foregroundStyle(.secondary)
-                                            Text(recording.modifiedAt, style: .time)
-                                                .font(.caption2)
-                                                .foregroundStyle(.secondary)
-                                            Text(recording.url.lastPathComponent)
-                                                .lineLimit(1)
-                                            Spacer()
+                                            Button {
+                                                openRecordingInFinder(recording.url)
+                                            } label: {
+                                                Image(systemName: "folder")
+                                            }
+                                            .buttonStyle(.bordered)
+                                            .controlSize(.small)
+                                            .clipShape(Circle())
+                                            .help("Show Recording in Finder")
                                         }
                                         .font(.caption)
                                     }
@@ -371,6 +379,10 @@ struct ViewerView: View {
             return
         }
         NSWorkspace.shared.activateFileViewerSelecting([sidecarURL])
+    }
+
+    private func openRecordingInFinder(_ url: URL) {
+        NSWorkspace.shared.activateFileViewerSelecting([url])
     }
 
     private func featurePrintForPoint(_ normalizedPoint: CGPoint) -> Data? {
