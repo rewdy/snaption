@@ -12,7 +12,7 @@ DESTINATION="${DESTINATION:-platform=macOS,arch=arm64}"
 NOTARY_PROFILE="${NOTARY_PROFILE:-}"
 LOCAL_RELEASE="${LOCAL_RELEASE:-0}"
 SELF_SIGN_IDENTITY="${SELF_SIGN_IDENTITY:--}"
-DEVELOPER_DIR_PATH="${DEVELOPER_DIR_PATH:-/Applications/Xcode.app/Contents/Developer}"
+DEVELOPER_DIR_PATH="${DEVELOPER_DIR_PATH:-${DEVELOPER_DIR:-/Applications/Xcode.app/Contents/Developer}}"
 
 mkdir -p "$(dirname "$ARCHIVE_PATH")" "$EXPORT_DIR" "$(dirname "$ZIP_PATH")"
 
