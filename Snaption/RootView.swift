@@ -320,8 +320,17 @@ struct RootView: View {
                 .padding()
                 .frame(width: 360)
             }
+        }
 
+        ToolbarItemGroup(placement: .primaryAction) {
             Menu {
+                Button("Show Data File in Finder") {
+                    appState.revealSelectedSidecarInFinder()
+                }
+                .disabled(!appState.selectedSidecarExists)
+
+                Divider()
+
                 if appState.faceFeaturesEnabled {
                     Button("Disable Face Features") {
                         appState.requestDisableFaceFeatures()

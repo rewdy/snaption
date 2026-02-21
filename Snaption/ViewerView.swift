@@ -14,17 +14,6 @@ struct ViewerView: View {
     @StateObject private var audioPlayer = AudioPlayerController()
     private let faceDetectionService = FaceDetectionService()
 
-    private var sidecarURL: URL? {
-        appState.selectedPhoto?.sidecarURL
-    }
-
-    private var sidecarExists: Bool {
-        guard let sidecarURL else {
-            return false
-        }
-        return FileManager.default.fileExists(atPath: sidecarURL.path)
-    }
-
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             if appState.selectedPhoto != nil {
@@ -288,15 +277,6 @@ struct ViewerView: View {
                     .disabled(!appState.canGoToNextPhoto)
                     .keyboardShortcut(.rightArrow, modifiers: [])
                 }
-                
-                Menu {
-                    Button("Show Data File in Finder") {
-                        openSidecarInFinder()
-                    }
-                    .disabled(!sidecarExists)
-                } label: {
-                    Image(systemName: "ellipsis")
-                }
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
@@ -377,13 +357,6 @@ struct ViewerView: View {
         }
 
         self.pendingLabel = nil
-    }
-
-    private func openSidecarInFinder() {
-        guard let sidecarURL, sidecarExists else {
-            return
-        }
-        NSWorkspace.shared.activateFileViewerSelecting([sidecarURL])
     }
 
     private func openRecordingInFinder(_ url: URL) {

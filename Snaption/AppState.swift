@@ -1,3 +1,4 @@
+import AppKit
 import Combine
 import Foundation
 import Speech
@@ -33,6 +34,17 @@ final class AppState: ObservableObject {
     @Published var shouldAppendRecordingSummary = false
     @Published var isAudioTranscriptionAvailable = false
     @Published var isAudioSummaryAvailable = false
+
+    var selectedSidecarURL: URL? {
+        selectedPhoto?.sidecarURL
+    }
+
+    var selectedSidecarExists: Bool {
+        guard let url = selectedSidecarURL else {
+            return false
+        }
+        return FileManager.default.fileExists(atPath: url.path)
+    }
 
     private let projectService: ProjectService
     private let sidecarService: SidecarService
@@ -109,6 +121,13 @@ final class AppState: ObservableObject {
         }
 
         return libraryViewModel.displayedItems.first(where: { $0.id == selectedPhotoID })
+    }
+
+    func revealSelectedSidecarInFinder() {
+        guard let url = selectedSidecarURL, selectedSidecarExists else {
+            return
+        }
+        NSWorkspace.shared.activateFileViewerSelecting([url])
     }
 
     var canGoToPreviousPhoto: Bool {
