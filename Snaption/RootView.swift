@@ -3,6 +3,7 @@ import SwiftUI
 struct RootView: View {
     @ObservedObject var appState: AppState
     @State private var isRecordingPulseOn = false
+    @State private var isAirPlayPickerPresented = false
 
     var body: some View {
         NavigationStack {
@@ -157,23 +158,16 @@ struct RootView: View {
         }
 
         ToolbarItemGroup(placement: .secondaryAction) {
-            Toggle(
-                isOn: Binding(
-                    get: { appState.isPresentationModeEnabled },
-                    set: { appState.setPresentationModeEnabled($0) }
-                )
-            ) {
-                Image(systemName: "airplayvideo")
+            if appState.isPresentationModeEnabled {
+                Button("End slideshow") {
+                    appState.setPresentationModeEnabled(false)
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(Color(red: 0.76, green: 0.51, blue: 0.96))
+                .foregroundStyle(.white)
             }
-            .labelsHidden()
-            .accessibilityLabel("Presentation Mode")
-            .help(
-                appState.hasExternalDisplay
-                    ? "Show the selected photo on the second display."
-                    : "Connect a second display to enable presentation mode."
-            )
-            .toggleStyle(.automatic)
-            .disabled(!appState.hasExternalDisplay)
+
+            presentationMenu
 
             if appState.faceFeaturesEnabled {
                 Button {
@@ -253,23 +247,16 @@ struct RootView: View {
         }
 
         ToolbarItemGroup(placement: .secondaryAction) {
-            Toggle(
-                isOn: Binding(
-                    get: { appState.isPresentationModeEnabled },
-                    set: { appState.setPresentationModeEnabled($0) }
-                )
-            ) {
-                Image(systemName: "airplayvideo")
+            if appState.isPresentationModeEnabled {
+                Button("End slideshow") {
+                    appState.setPresentationModeEnabled(false)
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(Color(red: 0.76, green: 0.51, blue: 0.96))
+                .foregroundStyle(.white)
             }
-            .labelsHidden()
-            .accessibilityLabel("Presentation Mode")
-            .help(
-                appState.hasExternalDisplay
-                    ? "Show the selected photo on the second display."
-                    : "Connect a second display to enable presentation mode."
-            )
-            .toggleStyle(.automatic)
-            .disabled(!appState.hasExternalDisplay)
+            
+            presentationMenu
 
             Button {
                 appState.toggleAudioRecording()
@@ -430,6 +417,56 @@ struct RootView: View {
                 systemImage: "folder",
                 description: Text("Open a project to view faces.")
             )
+        }
+    }
+
+    private var presentationMenu: some View {
+        Menu {
+            if appState.availablePresentationDisplays.isEmpty {
+                Button("No external displays") {}
+                    .disabled(true)
+            } else {
+                ForEach(appState.availablePresentationDisplays) { display in
+                    Button {
+                        appState.selectPresentationDisplay(display.id)
+                    } label: {
+                        if display.id == appState.presentationDisplayID {
+                            Label(display.name, systemImage: "checkmark")
+                        } else {
+                            Text(display.name)
+                        }
+                    }
+                }
+            }
+
+            Divider()
+
+            Button("AirPlay Devices...") {
+                isAirPlayPickerPresented = true
+            }
+        } label: {
+            HStack(spacing: 4) {
+                Image(systemName: "square.stack")
+                Image(systemName: "chevron.down")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .labelsHidden()
+        .accessibilityLabel("Presentation Mode")
+        .help(
+            appState.hasExternalDisplay
+                ? "Show the selected photo on the selected display."
+                : "Connect a second display to enable presentation mode."
+        )
+        .popover(isPresented: $isAirPlayPickerPresented, arrowEdge: .top) {
+            VStack(alignment: .leading, spacing: 8) {
+                Text("AirPlay Devices")
+                    .font(.headline)
+                AirPlayRoutePickerView()
+            }
+            .padding()
+            .frame(width: 240)
         }
     }
 }

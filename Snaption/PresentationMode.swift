@@ -2,7 +2,8 @@ import AppKit
 import Foundation
 
 protocol PresentationWindowControlling: AnyObject {
-    func showWindow()
+    func showWindow(on displayID: CGDirectDisplayID?)
+    func moveWindow(to displayID: CGDirectDisplayID?)
     func updatePhoto(url: URL?)
     func hideWindow()
 }
@@ -12,9 +13,9 @@ final class PresentationWindowController: PresentationWindowControlling {
     private var window: NSWindow?
     private let imageView = NSImageView()
 
-    func showWindow() {
+    func showWindow(on displayID: CGDirectDisplayID?) {
         ensureWindow()
-        moveWindowToFirstExternalDisplay()
+        moveWindow(to: displayID)
         window?.orderFrontRegardless()
     }
 
@@ -32,6 +33,25 @@ final class PresentationWindowController: PresentationWindowControlling {
 
     func hideWindow() {
         window?.orderOut(nil)
+    }
+
+    func moveWindow(to displayID: CGDirectDisplayID?) {
+        guard let window else {
+            return
+        }
+
+        let targetScreen: NSScreen? = {
+            if let displayID, let screen = screenForDisplayID(displayID) {
+                return screen
+            }
+            return NSScreen.screens.dropFirst().first
+        }()
+
+        guard let targetScreen else {
+            return
+        }
+
+        window.setFrame(targetScreen.frame, display: true)
     }
 
     private func ensureWindow() {
@@ -74,14 +94,13 @@ final class PresentationWindowController: PresentationWindowControlling {
         self.window = window
     }
 
-    private func moveWindowToFirstExternalDisplay() {
-        guard
-            let window,
-            let screen = NSScreen.screens.dropFirst().first
-        else {
-            return
+    private func screenForDisplayID(_ displayID: CGDirectDisplayID) -> NSScreen? {
+        for screen in NSScreen.screens {
+            if let screenNumber = screen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber,
+               screenNumber.uint32Value == displayID {
+                return screen
+            }
         }
-
-        window.setFrame(screen.frame, display: true)
+        return nil
     }
 }

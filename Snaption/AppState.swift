@@ -23,6 +23,7 @@ final class AppState: ObservableObject {
     @Published private(set) var notesStatusMessage: String?
     @Published private(set) var hasExternalDisplay = false
     @Published private(set) var isPresentationModeEnabled = false
+    @Published private(set) var presentationDisplayID: CGDirectDisplayID?
     @Published var faceFeaturesEnabled = false
     @Published var isFaceOptInPromptPresented = false
     @Published var isFaceDisableDialogPresented = false
@@ -486,6 +487,32 @@ final class AppState: ObservableObject {
         }
     }
 
+    func selectPresentationDisplay(_ displayID: CGDirectDisplayID) {
+        presentationDisplayID = displayID
+        if isPresentationModeEnabled {
+            presentationWindowController.moveWindow(to: displayID)
+            syncPresentationOutput()
+        } else {
+            enablePresentationMode()
+        }
+    }
+
+    var availablePresentationDisplays: [PresentationDisplay] {
+        let screens = NSScreen.screens
+        guard screens.count > 1 else {
+            return []
+        }
+        return screens.dropFirst().compactMap { screen in
+            guard let screenNumber = screen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber else {
+                return nil
+            }
+            return PresentationDisplay(
+                id: screenNumber.uint32Value,
+                name: screen.localizedName
+            )
+        }
+    }
+
     func updateNotesDraft(_ newValue: String) {
         notesText = newValue
         notesSaveState = .dirty
@@ -781,8 +808,12 @@ final class AppState: ObservableObject {
             return
         }
 
+        if presentationDisplayID == nil {
+            presentationDisplayID = availablePresentationDisplays.first?.id
+        }
+
         isPresentationModeEnabled = true
-        presentationWindowController.showWindow()
+        presentationWindowController.showWindow(on: presentationDisplayID)
         syncPresentationOutput()
     }
 
@@ -793,13 +824,25 @@ final class AppState: ObservableObject {
 
     private func handleDisplayAvailabilityChange(_ hasExternalDisplay: Bool) {
         self.hasExternalDisplay = hasExternalDisplay
+        if let displayID = presentationDisplayID,
+           !availablePresentationDisplays.contains(where: { $0.id == displayID }) {
+            presentationDisplayID = availablePresentationDisplays.first?.id
+        } else if presentationDisplayID == nil {
+            presentationDisplayID = availablePresentationDisplays.first?.id
+        }
 
         guard isPresentationModeEnabled else {
             return
         }
 
         if hasExternalDisplay {
-            presentationWindowController.showWindow()
+            if let displayID = presentationDisplayID,
+               availablePresentationDisplays.contains(where: { $0.id == displayID }) {
+                presentationWindowController.showWindow(on: displayID)
+            } else {
+                presentationDisplayID = availablePresentationDisplays.first?.id
+                presentationWindowController.showWindow(on: presentationDisplayID)
+            }
             syncPresentationOutput()
         } else {
             disablePresentationMode()
@@ -850,4 +893,9 @@ final class AppState: ObservableObject {
 private struct PendingAudioRecording {
     let url: URL
     let photo: PhotoItem
+}
+
+struct PresentationDisplay: Identifiable, Hashable {
+    let id: CGDirectDisplayID
+    let name: String
 }
