@@ -2,16 +2,30 @@ import SwiftUI
 
 struct RootView: View {
     @ObservedObject var appState: AppState
+    @ObservedObject var uiState: AppUIState
     @State private var isRecordingPulseOn = false
+
+    private struct RouteHeaderConfig {
+        let title: String
+        let subtitle: String
+        let toolbar: ToolbarKind
+    }
+
+    private enum ToolbarKind {
+        case none
+        case library
+        case viewer
+        case faceGallery
+    }
 
     var body: some View {
         NavigationStack {
             routeContent
             .padding()
-            .navigationTitle(navigationTitle)
-            .navigationSubtitle(navigationSubtitle)
+            .navigationTitle(headerConfig.title)
+            .navigationSubtitle(headerConfig.subtitle)
             .toolbar {
-                toolbarContent
+                toolbarContent(for: headerConfig.toolbar)
             }
         }
         .confirmationDialog(
@@ -45,58 +59,52 @@ struct RootView: View {
         }
     }
 
-    private var appName: String {
-        return "Snaption"
-    }
+    private var appName: String { "Snaption" }
     
     private var projectName: String? {
         appState.libraryViewModel.rootURL?.lastPathComponent
     }
 
-    private var navigationTitle: String {
+    private var headerConfig: RouteHeaderConfig {
         switch appState.route {
         case .start:
-            return appName
+            return RouteHeaderConfig(title: appName, subtitle: "", toolbar: .none)
         case .library:
-            return projectName ?? appName
-        case .viewer:
-            let base = projectName ?? appName
-            guard let relativePath = appState.selectedPhoto?.relativePath else {
-                return base
-            }
-
-            let segments = relativePath
-                .split(separator: "/")
-                .map(String.init)
-
-            guard segments.count > 1 else {
-                return base
-            }
-
-            let subfolders = segments.dropLast().joined(separator: "/")
-            return "\(base)/\(subfolders)"
-        case .faceGallery:
-            return projectName ?? "Face Gallery"
-        }
-    }
-
-    private var navigationSubtitle: String {
-        if appState.route == .library {
             let count = appState.libraryViewModel.isIndexing
                 ? appState.libraryViewModel.indexedCount
                 : appState.libraryViewModel.allItems.count
-            return "\(count) photos"
+            return RouteHeaderConfig(
+                title: projectName ?? appName,
+                subtitle: "\(count) photos",
+                toolbar: .library
+            )
+        case .viewer:
+            let title: String = {
+                let base = projectName ?? appName
+                guard let relativePath = appState.selectedPhoto?.relativePath else {
+                    return base
+                }
+                let segments = relativePath.split(separator: "/").map(String.init)
+                guard segments.count > 1 else {
+                    return base
+                }
+                return "\(base)/\(segments.dropLast().joined(separator: "/"))"
+            }()
+            let subtitle: String = {
+                let filename = appState.selectedPhoto?.filename ?? ""
+                guard !filename.isEmpty else {
+                    return ""
+                }
+                return "\(filename) - \(appState.notesSaveState.label.lowercased())"
+            }()
+            return RouteHeaderConfig(title: title, subtitle: subtitle, toolbar: .viewer)
+        case .faceGallery:
+            return RouteHeaderConfig(
+                title: projectName ?? "Face Gallery",
+                subtitle: "",
+                toolbar: .faceGallery
+            )
         }
-
-        if appState.route == .viewer {
-            let filename = appState.selectedPhoto?.filename ?? ""
-            guard !filename.isEmpty else {
-                return ""
-            }
-            return "\(filename) - \(appState.notesSaveState.label.lowercased())"
-        }
-
-        return ""
     }
 
     private var recordingPulseColor: Color {
@@ -132,15 +140,15 @@ struct RootView: View {
     }
 
     @ToolbarContentBuilder
-    private var toolbarContent: some ToolbarContent {
-        switch appState.route {
+    private func toolbarContent(for kind: ToolbarKind) -> some ToolbarContent {
+        switch kind {
         case .library:
             libraryToolbar
         case .viewer:
             viewerToolbar
         case .faceGallery:
             faceGalleryToolbar
-        case .start:
+        case .none:
             ToolbarItemGroup(placement: .automatic) {}
         }
     }
@@ -158,12 +166,9 @@ struct RootView: View {
 
         ToolbarItemGroup(placement: .secondaryAction) {
             if appState.isPresentationModeEnabled {
-                Button("End slideshow") {
+                EndSlideshowToolbarButton {
                     appState.setPresentationModeEnabled(false)
                 }
-                .buttonStyle(.borderedProminent)
-                .tint(Color(red: 0.76, green: 0.51, blue: 0.96))
-                .foregroundStyle(.white)
             }
 
             presentationMenu
@@ -217,15 +222,7 @@ struct RootView: View {
             .disabled(appState.libraryViewModel.allItems.isEmpty)
 
             Menu {
-                if appState.faceFeaturesEnabled {
-                    Button("Disable Face Features") {
-                        appState.requestDisableFaceFeatures()
-                    }
-                } else {
-                    Button("Enable Face Features") {
-                        appState.enableFaceFeatures()
-                    }
-                }
+                FaceFeaturesMenuContent(appState: appState)
             } label: {
                 Image(systemName: "ellipsis")
             }
@@ -247,12 +244,9 @@ struct RootView: View {
 
         ToolbarItemGroup(placement: .secondaryAction) {
             if appState.isPresentationModeEnabled {
-                Button("End slideshow") {
+                EndSlideshowToolbarButton {
                     appState.setPresentationModeEnabled(false)
                 }
-                .buttonStyle(.borderedProminent)
-                .tint(Color(red: 0.76, green: 0.51, blue: 0.96))
-                .foregroundStyle(.white)
             }
             
             presentationMenu
@@ -371,15 +365,7 @@ struct RootView: View {
 
                 Divider()
 
-                if appState.faceFeaturesEnabled {
-                    Button("Disable Face Features") {
-                        appState.requestDisableFaceFeatures()
-                    }
-                } else {
-                    Button("Enable Face Features") {
-                        appState.enableFaceFeatures()
-                    }
-                }
+                FaceFeaturesMenuContent(appState: appState)
             } label: {
                 Image(systemName: "ellipsis")
             }
@@ -421,35 +407,9 @@ struct RootView: View {
 
     private var presentationMenu: some View {
         Menu {
-            if appState.availablePresentationDisplays.isEmpty {
-                Button("No displays found") {}
-                    .disabled(true)
-            } else {
-                ForEach(appState.availablePresentationDisplays) { display in
-                    Button {
-                        appState.selectPresentationDisplay(display.id)
-                    } label: {
-                        if display.id == appState.presentationDisplayID {
-                            Label(display.name, systemImage: "checkmark")
-                        } else {
-                            Text(display.name)
-                        }
-                    }
-                }
-            }
-
-            Divider()
-
-            Button("AirPlay Devices...") {
-                appState.isAirPlayPickerPresented = true
-            }
+            PresentationDestinationMenuContent(appState: appState, uiState: uiState)
         } label: {
-            HStack(spacing: 4) {
-                Image(systemName: "square.stack")
-                Image(systemName: "chevron.down")
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-            }
+            PresentationMenuLabel()
         }
         .labelsHidden()
         .accessibilityLabel("Presentation Mode")
@@ -458,7 +418,7 @@ struct RootView: View {
                 ? "Show the selected photo on the selected display."
                 : "Connect a second display to enable presentation mode."
         )
-        .popover(isPresented: $appState.isAirPlayPickerPresented, arrowEdge: .top) {
+        .popover(isPresented: $uiState.isAirPlayPickerPresented, arrowEdge: .top) {
             VStack(alignment: .leading, spacing: 8) {
                 Text("AirPlay Devices")
                     .font(.headline)

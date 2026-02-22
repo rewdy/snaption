@@ -31,7 +31,6 @@ final class AppState: ObservableObject {
     @Published var isAudioRecordingEnabled = false
     @Published var isAudioRecordingBlinking = false
     @Published var isAudioStartDialogPresented = false
-    @Published var isAirPlayPickerPresented = false
     @Published var shouldSaveRecordingFiles = true
     @Published var shouldAppendRecordingText = false
     @Published var shouldAppendRecordingSummary = false
@@ -769,7 +768,7 @@ final class AppState: ObservableObject {
     }
 
     func enableFaceFeatures() {
-        guard let rootURL = projectRootURL, let faceFeatureKey else {
+        guard projectRootURL != nil, let faceFeatureKey else {
             return
         }
         faceFeaturesEnabled = true

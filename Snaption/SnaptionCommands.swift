@@ -2,6 +2,7 @@ import SwiftUI
 
 struct SnaptionCommands: Commands {
     @ObservedObject var appState: AppState
+    @ObservedObject var uiState: AppUIState
 
     var body: some Commands {
         CommandGroup(after: .newItem) {
@@ -26,27 +27,7 @@ struct SnaptionCommands: Commands {
 
         CommandGroup(after: .toolbar) {
             Menu("Start Presentation") {
-                if appState.availablePresentationDisplays.isEmpty {
-                    Text("No displays found")
-                } else {
-                    ForEach(appState.availablePresentationDisplays) { display in
-                        Button {
-                            appState.selectPresentationDisplay(display.id)
-                        } label: {
-                            if display.id == appState.presentationDisplayID {
-                                Label(display.name, systemImage: "checkmark")
-                            } else {
-                                Text(display.name)
-                            }
-                        }
-                    }
-                }
-
-                Divider()
-
-                Button("AirPlay Devices...") {
-                    appState.isAirPlayPickerPresented = true
-                }
+                PresentationDestinationMenuContent(appState: appState, uiState: uiState)
             }
 
             Divider()
