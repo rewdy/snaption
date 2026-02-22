@@ -8,6 +8,7 @@ final class AppState: ObservableObject {
     @Published var route: AppRoute = .start
     @Published var projectRootURL: URL?
     @Published private(set) var lastProjectURL: URL?
+    @Published private(set) var recentProjectURLs: [URL] = []
     @Published var statusMessage: String?
     @Published var libraryViewModel = LibraryViewModel() {
         didSet {
@@ -30,6 +31,7 @@ final class AppState: ObservableObject {
     @Published var isAudioRecordingEnabled = false
     @Published var isAudioRecordingBlinking = false
     @Published var isAudioStartDialogPresented = false
+    @Published var isAirPlayPickerPresented = false
     @Published var shouldSaveRecordingFiles = true
     @Published var shouldAppendRecordingText = false
     @Published var shouldAppendRecordingSummary = false
@@ -73,6 +75,8 @@ final class AppState: ObservableObject {
     private static let saveFilesPreferenceKey = "audio.saveRecordingFiles"
     private static let appendTextPreferenceKey = "audio.appendRecordingText"
     private static let appendSummaryPreferenceKey = "audio.appendRecordingSummary"
+    private static let recentProjectsPreferenceKey = "recentProjectPaths"
+    private static let recentProjectsLimit = 5
 
     init(
         projectService: ProjectService,
@@ -84,6 +88,7 @@ final class AppState: ObservableObject {
         self.sidecarService = sidecarService
         self.displayMonitor = displayMonitor
         self.presentationWindowController = presentationWindowController
+        loadRecentProjects()
         loadAudioPreferences()
         bindLibraryViewModelChanges()
         displayMonitor.startMonitoring { [weak self] hasExternalDisplay in
@@ -124,6 +129,21 @@ final class AppState: ObservableObject {
         }
 
         openProject(at: lastProjectURL)
+    }
+
+    func reopenRecentProject(_ url: URL) {
+        guard FileManager.default.fileExists(atPath: url.path) else {
+            statusMessage = "Selected folder is no longer available."
+            removeRecentProject(url)
+            return
+        }
+        openProject(at: url)
+    }
+
+    func clearRecentProjects() {
+        recentProjectURLs = []
+        lastProjectURL = nil
+        userDefaults.removeObject(forKey: Self.recentProjectsPreferenceKey)
     }
 
     var selectedPhoto: PhotoItem? {
@@ -355,9 +375,6 @@ final class AppState: ObservableObject {
 
         let wordCount = countWords(in: text)
         if wordCount < summaryMinimumWordCount {
-            await MainActor.run { [weak self] in
-                self?.appendRecordingSummary(text, date: Date(), for: photo)
-            }
             return
         }
 
@@ -498,11 +515,7 @@ final class AppState: ObservableObject {
     }
 
     var availablePresentationDisplays: [PresentationDisplay] {
-        let screens = NSScreen.screens
-        guard screens.count > 1 else {
-            return []
-        }
-        return screens.dropFirst().compactMap { screen in
+        NSScreen.screens.compactMap { screen in
             guard let screenNumber = screen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber else {
                 return nil
             }
@@ -715,7 +728,7 @@ final class AppState: ObservableObject {
     private func openProject(at url: URL) {
         stopAudioRecordingIfNeeded()
         projectRootURL = url
-        lastProjectURL = url
+        addRecentProject(url)
         statusMessage = nil
         selectedPhotoID = nil
         libraryViewModel.loadProject(rootURL: url)
@@ -727,6 +740,32 @@ final class AppState: ObservableObject {
         if faceFeaturesEnabled {
             startFaceIndexingIfNeeded()
         }
+    }
+
+    private func loadRecentProjects() {
+        let paths = userDefaults.array(forKey: Self.recentProjectsPreferenceKey) as? [String] ?? []
+        recentProjectURLs = paths.map { URL(fileURLWithPath: $0) }
+        lastProjectURL = recentProjectURLs.first
+    }
+
+    private func persistRecentProjects() {
+        let paths = recentProjectURLs.map(\.path)
+        userDefaults.set(paths, forKey: Self.recentProjectsPreferenceKey)
+        lastProjectURL = recentProjectURLs.first
+    }
+
+    private func addRecentProject(_ url: URL) {
+        recentProjectURLs.removeAll { $0.path == url.path }
+        recentProjectURLs.insert(url, at: 0)
+        if recentProjectURLs.count > Self.recentProjectsLimit {
+            recentProjectURLs = Array(recentProjectURLs.prefix(Self.recentProjectsLimit))
+        }
+        persistRecentProjects()
+    }
+
+    private func removeRecentProject(_ url: URL) {
+        recentProjectURLs.removeAll { $0.path == url.path }
+        persistRecentProjects()
     }
 
     func enableFaceFeatures() {

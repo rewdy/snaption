@@ -12,9 +12,11 @@ protocol PresentationWindowControlling: AnyObject {
 final class PresentationWindowController: PresentationWindowControlling {
     private var window: NSWindow?
     private let imageView = NSImageView()
+    private var previousPresentationOptions: NSApplication.PresentationOptions?
 
     func showWindow(on displayID: CGDirectDisplayID?) {
         ensureWindow()
+        beginSystemPresentationIfNeeded()
         moveWindow(to: displayID)
         window?.orderFrontRegardless()
     }
@@ -33,6 +35,7 @@ final class PresentationWindowController: PresentationWindowControlling {
 
     func hideWindow() {
         window?.orderOut(nil)
+        endSystemPresentationIfNeeded()
     }
 
     func moveWindow(to displayID: CGDirectDisplayID?) {
@@ -65,11 +68,11 @@ final class PresentationWindowController: PresentationWindowControlling {
             backing: .buffered,
             defer: false
         )
-        window.level = .normal
+        window.level = .screenSaver
         window.isOpaque = true
         window.backgroundColor = .black
         window.hasShadow = false
-        window.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
+        window.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .fullScreenDisallowsTiling]
         window.ignoresMouseEvents = true
 
         imageView.imageScaling = .scaleProportionallyUpOrDown
@@ -92,6 +95,29 @@ final class PresentationWindowController: PresentationWindowControlling {
 
         window.contentView = containerView
         self.window = window
+    }
+
+    private func beginSystemPresentationIfNeeded() {
+        guard previousPresentationOptions == nil else {
+            return
+        }
+        previousPresentationOptions = NSApplication.shared.presentationOptions
+        NSApplication.shared.presentationOptions = [
+            .hideDock,
+            .hideMenuBar,
+            .disableProcessSwitching,
+            .disableForceQuit,
+            .disableSessionTermination,
+            .disableHideApplication
+        ]
+    }
+
+    private func endSystemPresentationIfNeeded() {
+        guard let previousPresentationOptions else {
+            return
+        }
+        NSApplication.shared.presentationOptions = previousPresentationOptions
+        self.previousPresentationOptions = nil
     }
 
     private func screenForDisplayID(_ displayID: CGDirectDisplayID) -> NSScreen? {

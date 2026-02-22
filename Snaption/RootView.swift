@@ -3,7 +3,6 @@ import SwiftUI
 struct RootView: View {
     @ObservedObject var appState: AppState
     @State private var isRecordingPulseOn = false
-    @State private var isAirPlayPickerPresented = false
 
     var body: some View {
         NavigationStack {
@@ -150,11 +149,11 @@ struct RootView: View {
     private var libraryToolbar: some ToolbarContent {
         ToolbarItemGroup(placement: .navigation) {
             Button {
-                appState.openProjectPicker()
+                appState.navigateToStart()
             } label: {
                 Image(systemName: "folder")
             }
-            .help("Change folder")
+            .help("Back to Start")
         }
 
         ToolbarItemGroup(placement: .secondaryAction) {
@@ -423,7 +422,7 @@ struct RootView: View {
     private var presentationMenu: some View {
         Menu {
             if appState.availablePresentationDisplays.isEmpty {
-                Button("No external displays") {}
+                Button("No displays found") {}
                     .disabled(true)
             } else {
                 ForEach(appState.availablePresentationDisplays) { display in
@@ -442,7 +441,7 @@ struct RootView: View {
             Divider()
 
             Button("AirPlay Devices...") {
-                isAirPlayPickerPresented = true
+                appState.isAirPlayPickerPresented = true
             }
         } label: {
             HStack(spacing: 4) {
@@ -459,7 +458,7 @@ struct RootView: View {
                 ? "Show the selected photo on the selected display."
                 : "Connect a second display to enable presentation mode."
         )
-        .popover(isPresented: $isAirPlayPickerPresented, arrowEdge: .top) {
+        .popover(isPresented: $appState.isAirPlayPickerPresented, arrowEdge: .top) {
             VStack(alignment: .leading, spacing: 8) {
                 Text("AirPlay Devices")
                     .font(.headline)

@@ -10,5 +10,8 @@ struct SnaptionApp: App {
             RootView(appState: appState)
                 .frame(minWidth: 960, minHeight: 640)
         }
+        .commands {
+            SnaptionCommands(appState: appState)
+        }
     }
 }
